@@ -1,0 +1,9 @@
+# IDE stuff
+.vscode
+*~
+
+# Build stuff
+target
+*.exe
+Cargo.lock
+

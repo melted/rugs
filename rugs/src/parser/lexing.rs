@@ -133,13 +133,43 @@ impl<'a> super::ParserState<'a> {
     fn get_string(&mut self) -> Result<(), ParseError> {
         self.chars.next();
         while let Some((p, c)) = self.chars.next() {
+            match c {
+                '"' => {
+                    self.queue_token(TokenType::String, p - self.pos);
+                    return Ok(());
+                },
+                '\\' => {
+                    self.read_escape(TokenType::String);
+                }
+            }
         }
-        unimplemented!()
+        self.lex_error("unterminated string")
     }
 
+    fn read_escape(&mut self, tt : TokenType) -> Result<(), ParseError> {
+        // As we're not parsing the strings or validating them, the only thing we need to bother
+        // with here at the moment is making sure escaped terminators are skipped.
+        // If we parsed the escapes we would have to pass a string back with the token.
+        // And I don't want to do that even though this probably is the right place to 
+        // do it.
+        self.chars.next(); // skippity
+        Ok(())
+    }
 
     fn get_char(&mut self) -> Result<(), ParseError> {
-        unimplemented!()
+        self.chars.next();
+        if let Some((_, c)) = self.chars.next() {
+            match c {
+                '\\' => {
+                    self.read_escape(TokenType::Char);
+                }
+            }
+        }
+        if let Some((p, '\'')) = self.chars.next() {
+            self.queue_token(TokenType::Char, p - self.pos);
+            return Ok(());
+        }
+        self.lex_error("missing ' at end of char literal")
     }
 
     fn get_number(&mut self) -> Result<(), ParseError> {

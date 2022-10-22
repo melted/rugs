@@ -1,7 +1,7 @@
 use super::{ParserState, ParseError};
 
 
-
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     VarId,
     ConId,
@@ -64,18 +64,27 @@ pub enum TokenType {
     Eof
 }
 
+#[derive(Debug, Clone)]
 pub struct Token<'a> {
     token : TokenType,
     val : &'a str,
     loc : (usize, usize)
 }
 
+fn is_symbolic(c : char) -> bool {
+    // TODO: Use Unicode properties. For now anything non-alphanumeric will do
+    c == '!' || c == '#' || c == '$' || c == '%' || c == '&' || c == '*' ||
+    c == '+' || c == '.' || c == '/' || c == '<' || c == '=' || c == '>' ||
+    c == '?' || c == '@' || c == '\\' || c== '^' || c == '|' || c == '-' ||
+    c == '~' || c == ':' || (!c.is_ascii() && !c.is_alphanumeric() && !c.is_whitespace())
+} 
+
 impl<'a> super::ParserState<'a> {
-    pub (super) fn get_next_token(&mut self) -> Result<Token, ParseError> {
+    pub (super) fn get_next_token(&mut self) -> Result<Token, ParseError> {   
         if let Some(tok) = self.queue.pop_front() {
-            return Ok(tok);
+            Ok(tok)
         } else {
-            return self.next_token();
+            self.next_token()
         }
     }
 
@@ -108,11 +117,11 @@ impl<'a> super::ParserState<'a> {
                 '}' => self.queue_token(TokenType::RightBrace,1)?,
                 '"' => self.get_string()?,
                 '\'' => self.get_char()?,
-                x if c.is_numeric() =>
-                    self.get_number()?,
-                _ => {
-                    self.get_id_token()?;
-                }
+                x if c.is_numeric() => self.get_number()?,
+                x if c.is_uppercase() => self.get_modcon()?,
+                x if c.is_lowercase() => self.get_varid()?,
+                x if is_symbolic(c) => self.get_symbol()?,
+                _ => self.lex_error(format!("Lexing failed at {}", c).as_str())?
             }
             if let Some(tok) = self.queue.pop_front() {
                 return Ok(tok);
@@ -137,6 +146,18 @@ impl<'a> super::ParserState<'a> {
         unimplemented!()
     }
 
+    fn get_modcon(&mut self) -> Result<(), ParseError> {
+        unimplemented!()
+    }
+
+    fn get_varid(&mut self) -> Result<(), ParseError> {
+        unimplemented!()
+    }
+
+    fn get_symbol(&mut self) -> Result<(), ParseError> {
+        unimplemented!()
+    }
+
     fn line_comment_or_operator(&mut self) -> Option<Token> {
         unimplemented!()
     }
@@ -158,7 +179,7 @@ impl<'a> super::ParserState<'a> {
         Ok(())
     }
 
-    fn lex_error(&self, msg : &str) -> Result<(), ParseError> {
+    fn lex_error<T>(&self, msg : &str) -> Result<T, ParseError> {
         Err(ParseError { msg: msg.to_string(), loc: (self.pos, self.pos) })
     }
 }

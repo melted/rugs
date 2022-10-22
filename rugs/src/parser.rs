@@ -21,6 +21,7 @@ pub fn parse_expression(expr : &str) -> Result<Expression, ParseError> {
     Err(ParseError::new("bah", (0,0)))
 }
 
+#[derive(Debug)]
 pub (self) struct ParserState<'a> {
     src : &'a str,
     chars : Peekable<CharIndices<'a>>,

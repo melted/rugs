@@ -5,6 +5,7 @@
 use std::path::{ Path, PathBuf };
 use std::ops::Deref;
 
+#[derive(Debug)]
 pub struct Module {
     pub name : String,
     pub file : Option<PathBuf>,
@@ -21,11 +22,13 @@ impl Module {
             file: None,
             trivia: Vec::new(),
             imports: Vec::new(),
-            exports: None
+            exports: None,
+            declarations: Vec::new()
         }
     }
 }
 
+#[derive(Debug)]
 pub struct Import {
     pub name : String,
     pub qualified : bool,
@@ -34,12 +37,14 @@ pub struct Import {
     pub hidden : Vec<String>
 }
 
+#[derive(Debug)]
 pub enum Annotation {
     OtherPragma(String),
     Doc(String),
     Comment(String)
 }
 
+#[derive(Debug)]
 pub struct Annotated<T> {
     pub annotations : Vec<Annotation>,
     pub location : (usize, usize),
@@ -54,10 +59,12 @@ impl<T> Deref for Annotated<T> {
     }
 }
 
+#[derive(Debug)]
 pub enum Declaration {
 
 }
 
+#[derive(Debug)]
 pub enum Expression {
 
 }

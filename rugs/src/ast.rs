@@ -8,9 +8,22 @@ use std::ops::Deref;
 pub struct Module {
     pub name : String,
     pub file : Option<PathBuf>,
-    pub pragmas : Located<Annotation>,
+    pub trivia : Vec<Annotated<()>>,
     pub imports : Vec<Annotated<Import>>,
-    pub exports : Option<Vec<Annotated<String>>>
+    pub exports : Option<Vec<Annotated<String>>>,
+    pub declarations : Vec<Annotated<Declaration>>
+}
+
+impl Module {
+    pub fn new() -> Module {
+        Module { 
+            name: String::new(),
+            file: None,
+            trivia: Vec::new(),
+            imports: Vec::new(),
+            exports: None
+        }
+    }
 }
 
 pub struct Import {
@@ -21,21 +34,10 @@ pub struct Import {
     pub hidden : Vec<String>
 }
 
-pub struct Located<T> {
-    pub location : (usize, usize),
-    pub value : T
-}
-
-impl<T> Deref for Located<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-
 pub enum Annotation {
-    OtherPragma(String)
+    OtherPragma(String),
+    Doc(String),
+    Comment(String)
 }
 
 pub struct Annotated<T> {
@@ -43,7 +45,6 @@ pub struct Annotated<T> {
     pub location : (usize, usize),
     pub value : T
 }
-
 
 impl<T> Deref for Annotated<T> {
     type Target = T;
@@ -53,6 +54,10 @@ impl<T> Deref for Annotated<T> {
     }
 }
 
-pub struct Expression {
+pub enum Declaration {
+
+}
+
+pub enum Expression {
 
 }

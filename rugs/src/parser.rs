@@ -10,13 +10,13 @@ use crate::ast::{Annotated, Module, Expression};
 use self::lexing::Token;
 
 pub fn parse(code : &str) -> Result<Module, ParseError> {
-    let state = ParserState::new(code);
+    let mut state = ParserState::new(code);
 
     Err(ParseError::new("bah", (0,0)))
 }
 
 pub fn parse_expression(expr : &str) -> Result<Expression, ParseError> {
-    let state = ParserState::new(expr);
+    let mut state = ParserState::new(expr);
 
     Err(ParseError::new("bah", (0,0)))
 }
@@ -25,7 +25,7 @@ pub fn parse_expression(expr : &str) -> Result<Expression, ParseError> {
 pub (self) struct ParserState<'a> {
     src : &'a str,
     chars : Peekable<CharIndices<'a>>,
-    queue : VecDeque<Annotated<Token<'a>>>,
+    queue : VecDeque<Annotated<Token>>,
     newlines : Vec<usize>,
     pos : usize,
     column : usize
@@ -44,6 +44,7 @@ impl<'a> ParserState<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct ParseError {
     msg : String,
     loc : (usize, usize)

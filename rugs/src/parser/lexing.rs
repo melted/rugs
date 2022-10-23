@@ -2,16 +2,16 @@ use super::{ParserState, ParseError};
 use crate::ast::Annotated;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token<'a> {
-    VarId(&'a str),
-    ConId(&'a str),
-    VarSym(&'a str),
-    ConSym(&'a str),
-    QVarId(&'a str, &'a str),
-    QConId(&'a str, &'a str),
-    QVarSym(&'a str, &'a str),
-    QConSym(&'a str, &'a str),
-    Integer(&'a str),
+pub enum Token {
+    VarId(String),
+    ConId(String),
+    VarSym(String),
+    ConSym(String),
+    QVarId(String, String),
+    QConId(String, String),
+    QVarSym(String, String),
+    QConSym(String, String),
+    Integer(String),
     Float(f64),
     Char(char),
     String(String),
@@ -73,7 +73,7 @@ fn is_symbolic(c : char) -> bool {
 }
 
 impl<'a> super::ParserState<'a> {
-    pub (super) fn get_next_token(&'a mut self) -> Result<Annotated<Token<'a>>, ParseError> {   
+    pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {   
         if let Some(tok) = self.queue.pop_front() {
             Ok(tok)
         } else {
@@ -81,9 +81,10 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn next_token(&'a mut self) -> Result<Annotated<Token<'a>>, ParseError> {
+    fn next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
         while let Some((p, c)) = self.chars.peek() {
-            let ch =*c;
+            let ch = *c;
+            let pos = *p;
             self.pos = *p;
             match ch {
                 '\n' => {
@@ -130,7 +131,7 @@ impl<'a> super::ParserState<'a> {
         while let Some((p, c)) = self.chars.next() {
             match c {
                 '"' => {
-                    self.queue_token(Token::String(result), p - self.pos);
+                    self.queue_token(Token::String(result), p - self.pos)?;
                     return Ok(());
                 },
                 '\\' => {
@@ -158,7 +159,7 @@ impl<'a> super::ParserState<'a> {
                 c => c
             };
             if let Some((p, '\'')) = self.chars.next() {
-                self.queue_token(Token::Char(ch), p - self.pos);
+                self.queue_token(Token::Char(ch), p - self.pos)?;
                 return Ok(());
             }
         }
@@ -204,11 +205,11 @@ impl<'a> super::ParserState<'a> {
         unimplemented!()
     }
 
-    fn make_token(&'a mut self, token : Token<'a>, n : usize) -> Annotated<Token<'a>> {
+    fn make_token(&mut self, token : Token, n : usize) -> Annotated<Token> {
         Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+n), value: token }
     }
 
-    fn queue_token(&'a mut self, token : Token<'a>, n : usize) -> Result<(), ParseError> {
+    fn queue_token(&mut self, token : Token, n : usize) -> Result<(), ParseError> {
         let tok = Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+n), value: token };
         self.queue.push_back(tok);
         Ok(())

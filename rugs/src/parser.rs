@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::ast::{Module, Expression};
+use crate::ast::{Annotated, Module, Expression};
 
 use self::lexing::Token;
 
@@ -25,7 +25,7 @@ pub fn parse_expression(expr : &str) -> Result<Expression, ParseError> {
 pub (self) struct ParserState<'a> {
     src : &'a str,
     chars : Peekable<CharIndices<'a>>,
-    queue : VecDeque<Token<'a>>,
+    queue : VecDeque<Annotated<Token<'a>>>,
     newlines : Vec<usize>,
     pos : usize,
     column : usize

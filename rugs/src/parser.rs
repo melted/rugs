@@ -1,7 +1,7 @@
 mod tests;
 mod lexing;
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, io::Write};
 use std::iter::Peekable;
 use std::str::CharIndices;
 
@@ -19,6 +19,18 @@ pub fn parse_expression(expr : &str) -> Result<Expression, ParseError> {
     let mut state = ParserState::new(expr);
 
     Err(ParseError::new("bah", (0,0)))
+}
+
+pub fn dump_tokens(code : &str, output : &mut impl Write) -> Result<(), ParseError> {
+    let mut state = ParserState::new(code);
+
+    loop {
+        let t = state.get_next_token()?;
+        writeln!(output, "{:?}", t).unwrap(); // YOLO
+        if *t == Token::Eof { break; }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug)]

@@ -83,56 +83,62 @@ impl<'a> super::ParserState<'a> {
 
     fn next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
         while let Some((p, c)) = self.chars.peek() {
-            let ch = *c;
-            let pos = *p;
             self.pos = *p;
-            match ch {
+            let tok = match *c {
                 '\n' => {
                     self.newlines.push(*p);
                     self.chars.next();
+                    None
                 },
-                ws if ch.is_whitespace() => {
-                    self.chars.next();
+                ws if c.is_whitespace() => {
+                    self.chars.next(); 
+                    None 
                 },
-                '(' => self.queue_token(Token::LeftParen, 1)?,
-                ')' => self.queue_token(Token::RightParen,1)?,
-                '[' => self.queue_token(Token::LeftBracket,1)?,
-                ']' => self.queue_token(Token::RightBracket,1)?,
-                '`' => self.queue_token(Token::Backtick,1)?,
-                ',' => self.queue_token(Token::Comma,1)?,
-                ';' => self.queue_token(Token::Semicolon,1)?,
+                '(' => Some(self.simple_token(Token::LeftParen)),
+                ')' => Some(self.simple_token(Token::RightParen)),
+                '[' => Some(self.simple_token(Token::LeftBracket)),
+                ']' => Some(self.simple_token(Token::RightBracket)),
+                '`' => Some(self.simple_token(Token::Backtick)),
+                ',' => Some(self.simple_token(Token::Comma)),
+                ';' => Some(self.simple_token(Token::Semicolon)),
                 '{' => {
                     self.chars.next();
                     if let Some((p, '-')) = self.chars.peek() {
                         self.read_block_comment()?;
+                        None
                     } else {
-                        self.queue_token(Token::LeftBrace, 1)?;
+                        Some(self.simple_token(Token::LeftBrace))
                     }
                 },
-                '}' => self.queue_token(Token::RightBrace,1)?,
-                '"' => self.get_string()?,
-                '\'' => self.get_char()?,
-                x if ch.is_numeric() => self.get_number()?,
-                x if ch.is_uppercase() => self.get_modcon()?,
-                x if ch.is_lowercase() => self.get_varid()?,
-                x if is_symbolic(ch) => self.get_symbol()?,
-                _ => self.lex_error(format!("Lexing failed at {}", ch).as_str())?
-            }
-            if let Some(tok) = self.queue.pop_front() {
+                '}' => Some(self.simple_token(Token::RightBrace)),
+                '"' => Some(self.get_string()?),
+                '\'' => Some(self.get_char()?),
+                _ if c.is_numeric() => Some(self.get_number()?),
+                _ if c.is_uppercase() => Some(self.get_modcon()?),
+                _ if c.is_lowercase() => Some(self.get_varid()?),
+                _ if is_symbolic(*c) => Some(self.get_symbol()?),
+                _ => {
+                    let pos = *p;
+                    let ch = *c;
+                    self.lex_error(format!("Lexing failed at {} char:{}", pos,  ch).as_str())?;
+                    None
+                }
+            }; 
+
+            if let Some(tok) = tok {
                 return Ok(tok);
             }
         }
-        Ok(self.make_token(Token::Eof, 1))
+        Ok(self.simple_token(Token::Eof))
     }
 
-    fn get_string(&mut self) -> Result<(), ParseError> {
+    fn get_string(&mut self) -> Result<Annotated<Token>, ParseError> {
         let mut result = String::new();
         self.chars.next();
         while let Some((p, c)) = self.chars.next() {
             match c {
                 '"' => {
-                    self.queue_token(Token::String(result), p - self.pos)?;
-                    return Ok(());
+                    return Ok(self.token(Token::String(result), p - self.pos));
                 },
                 '\\' => {
                     if let Some(c) = self.read_escape(true)? {
@@ -145,7 +151,7 @@ impl<'a> super::ParserState<'a> {
         self.lex_error("unterminated string")
     }
 
-    fn get_char(&mut self) -> Result<(), ParseError> {
+    fn get_char(&mut self) -> Result<Annotated<Token>, ParseError> {
         self.chars.next();
         if let Some((_, c)) = self.chars.next() {
             let ch = match c {
@@ -159,37 +165,32 @@ impl<'a> super::ParserState<'a> {
                 c => c
             };
             if let Some((p, '\'')) = self.chars.next() {
-                self.queue_token(Token::Char(ch), p - self.pos)?;
-                return Ok(());
+                return Ok(self.token(Token::Char(ch), p - self.pos));
             }
         }
         self.lex_error("missing ' at end of char literal")
     }
 
     fn read_escape(&mut self, for_string : bool) -> Result<Option<char>, ParseError> {
-        // As we're not parsing the strings or validating them, the only thing we need to bother
-        // with here at the moment is making sure escaped terminators are skipped.
-        // If we parsed the escapes we would have to pass a string back with the token.
-        // And I don't want to do that even though this probably is the right place to 
-        // do it.
+        // TODO: implement
         self.chars.next(); // skippity
         Ok(None)
     }
 
 
-    fn get_number(&mut self) -> Result<(), ParseError> {
+    fn get_number(&mut self) -> Result<Annotated<Token>, ParseError> {
         unimplemented!()
     }
 
-    fn get_modcon(&mut self) -> Result<(), ParseError> {
+    fn get_modcon(&mut self) -> Result<Annotated<Token>, ParseError> {
         unimplemented!()
     }
 
-    fn get_varid(&mut self) -> Result<(), ParseError> {
+    fn get_varid(&mut self) -> Result<Annotated<Token>, ParseError> {
         unimplemented!()
     }
 
-    fn get_symbol(&mut self) -> Result<(), ParseError> {
+    fn get_symbol(&mut self) -> Result<Annotated<Token>, ParseError> {
         unimplemented!()
     }
 
@@ -197,22 +198,34 @@ impl<'a> super::ParserState<'a> {
         unimplemented!()
     }
 
-    fn get_id_token(&mut self) -> Result<(), ParseError> {
+    fn get_id_token(&mut self) -> Result<Annotated<Token>, ParseError> {
         unimplemented!()
     }
 
-    fn read_block_comment(&mut self) -> Result<(), ParseError> {
+    fn read_block_comment(&mut self) -> Result<Annotated<Token>, ParseError> {
         unimplemented!()
     }
 
-    fn make_token(&mut self, token : Token, n : usize) -> Annotated<Token> {
+    fn snarf(&mut self, pred : impl Fn (char) -> bool) -> String {
+        let mut out = String::new();
+        while let Some((p, ch)) = self.chars.peek() {
+            if pred(*ch) {
+                out.push(*ch);
+                self.chars.next();
+            } else {
+                break;
+            }
+        }
+        out
+    }
+
+    fn simple_token(&mut self, token : Token) -> Annotated<Token> {
+        self.chars.next();
+        Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+1), value: token }
+    }
+
+    fn token(&mut self, token : Token, n : usize) -> Annotated<Token> {
         Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+n), value: token }
-    }
-
-    fn queue_token(&mut self, token : Token, n : usize) -> Result<(), ParseError> {
-        let tok = Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+n), value: token };
-        self.queue.push_back(tok);
-        Ok(())
     }
 
     fn lex_error<T>(&self, msg : &str) -> Result<T, ParseError> {

@@ -1,7 +1,11 @@
+use std::io;
+
+use rugs::parser::dump_tokens;
+
 
 fn main() {
-    let x = rugs::add(3, 4);
-    println!("Rugs v0.0 {}", x);
+    let res = dump_tokens("(\"abc\")", &mut io::stdout().lock());
+    println!("{:?}", res);
 }
 
 #[test]

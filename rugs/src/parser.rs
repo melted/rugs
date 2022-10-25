@@ -1,6 +1,7 @@
 mod tests;
 mod lexing;
 
+use std::num::ParseFloatError;
 use std::{collections::VecDeque, io::Write};
 use std::iter::Peekable;
 use std::str::CharIndices;
@@ -65,5 +66,11 @@ pub struct ParseError {
 impl ParseError {
     pub fn new(what : &str, loc : (usize, usize)) -> ParseError {
         ParseError { msg: what.to_string(), loc }
+    }
+}
+
+impl From<ParseFloatError> for ParseError {
+    fn from(value: ParseFloatError) -> Self {
+        ParseError { msg: value.to_string(), loc: (0,0) }
     }
 }

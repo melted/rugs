@@ -72,6 +72,10 @@ fn is_symbolic(c : char) -> bool {
     c == '~' || c == ':' || (!c.is_ascii() && !c.is_alphanumeric() && !c.is_whitespace())
 }
 
+fn is_identifier_char(c : char) -> bool {
+    c.is_alphanumeric() || c == '\''
+}
+
 impl<'a> super::ParserState<'a> {
     pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {   
         if let Some(tok) = self.queue.pop_front() {
@@ -90,7 +94,7 @@ impl<'a> super::ParserState<'a> {
                     self.chars.next();
                     None
                 },
-                ws if c.is_whitespace() => {
+                _ if c.is_whitespace() => {
                     self.chars.next(); 
                     None 
                 },
@@ -102,8 +106,7 @@ impl<'a> super::ParserState<'a> {
                 ',' => Some(self.simple_token(Token::Comma)),
                 ';' => Some(self.simple_token(Token::Semicolon)),
                 '{' => {
-                    self.chars.next();
-                    if let Some((p, '-')) = self.chars.peek() {
+                    if self.check_prefix("{-") {
                         self.read_block_comment()?;
                         None
                     } else {
@@ -138,7 +141,7 @@ impl<'a> super::ParserState<'a> {
         while let Some((p, c)) = self.chars.next() {
             match c {
                 '"' => {
-                    return Ok(self.token(Token::String(result), p - self.pos));
+                    return Ok(self.token(Token::String(result), p));
                 },
                 '\\' => {
                     if let Some(c) = self.read_escape(true)? {
@@ -165,7 +168,7 @@ impl<'a> super::ParserState<'a> {
                 c => c
             };
             if let Some((p, '\'')) = self.chars.next() {
-                return Ok(self.token(Token::Char(ch), p - self.pos));
+                return Ok(self.token(Token::Char(ch), p));
             }
         }
         self.lex_error("missing ' at end of char literal")
@@ -179,10 +182,47 @@ impl<'a> super::ParserState<'a> {
 
 
     fn get_number(&mut self) -> Result<Annotated<Token>, ParseError> {
-        unimplemented!()
+        if self.check_prefix("0x") || self.check_prefix("0X") {
+            self.advance(2);
+            let stop = self.snarf(char::is_ascii_hexdigit);
+            return Ok(self.token(Token::Integer(self.src[self.pos..stop].to_string()), stop));
+        }
+        if self.check_prefix("0o") || self.check_prefix("0O") {
+            self.advance(2);
+            let stop = self.snarf(|c| *c >= '0' && *c <= '7');
+            return Ok(self.token(Token::Integer(self.src[self.pos..stop].to_string()), stop));
+        }
+        let stop = self.snarf(char::is_ascii_digit);
+        if let Some((p, ch)) = self.chars.peek() {
+            let mut is_float = false;
+            let mut float_end = if *ch == '.' {
+                is_float = true;
+                self.advance(1);
+                self.snarf(char::is_ascii_digit)
+            } else {
+                *p
+            };
+            if let Some((p, ch)) = self.chars.peek() {
+                if *ch == 'e' || *ch == 'E' {
+                    is_float = true;
+                    self.advance(1);
+                    if let Some((_, c)) = self.chars.peek() {
+                        if *c == '+' || *c == '-' {
+                            self.advance(1);
+                        }
+                    }
+                    float_end = self.snarf(char::is_ascii_digit);
+                }
+            }
+            if is_float {
+                return Ok(self.token(Token::Float(self.src[self.pos..float_end].parse()?), float_end));
+            }
+        }
+        Ok(self.token(Token::Integer(self.src[self.pos..stop].to_string()), stop))
     }
 
     fn get_modcon(&mut self) -> Result<Annotated<Token>, ParseError> {
+        
         unimplemented!()
     }
 
@@ -194,29 +234,29 @@ impl<'a> super::ParserState<'a> {
         unimplemented!()
     }
 
-    fn line_comment_or_operator(&mut self) -> Option<Token> {
-        unimplemented!()
-    }
-
-    fn get_id_token(&mut self) -> Result<Annotated<Token>, ParseError> {
-        unimplemented!()
-    }
-
     fn read_block_comment(&mut self) -> Result<Annotated<Token>, ParseError> {
         unimplemented!()
     }
 
-    fn snarf(&mut self, pred : impl Fn (char) -> bool) -> String {
-        let mut out = String::new();
+    fn snarf(&mut self, pred : impl Fn (&char) -> bool) -> usize {
         while let Some((p, ch)) = self.chars.peek() {
-            if pred(*ch) {
-                out.push(*ch);
+            if pred(ch) {
                 self.chars.next();
             } else {
-                break;
+                return *p;
             }
         }
-        out
+        self.pos
+    }
+
+    fn advance(&mut self, n : usize) {
+        for _ in 0..n {
+            self.chars.next();
+        }
+    }
+
+    fn check_prefix(&self, what: &str) -> bool {
+        self.src[self.pos..].starts_with(what)
     }
 
     fn simple_token(&mut self, token : Token) -> Annotated<Token> {
@@ -224,8 +264,8 @@ impl<'a> super::ParserState<'a> {
         Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+1), value: token }
     }
 
-    fn token(&mut self, token : Token, n : usize) -> Annotated<Token> {
-        Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+n), value: token }
+    fn token(&mut self, token : Token, to : usize) -> Annotated<Token> {
+        Annotated { annotations: Vec::new(), location:  (self.pos, to), value: token }
     }
 
     fn lex_error<T>(&self, msg : &str) -> Result<T, ParseError> {

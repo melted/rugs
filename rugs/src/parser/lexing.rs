@@ -87,15 +87,15 @@ impl<'a> super::ParserState<'a> {
 
     fn next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
         while let Some((p, c)) = self.chars.peek() {
-            self.pos = *p;
+            self.token_start = *p;
             let tok = match *c {
                 '\n' => {
                     self.newlines.push(*p);
-                    self.chars.next();
+                    self.next();
                     None
                 },
                 _ if c.is_whitespace() => {
-                    self.chars.next(); 
+                    self.next(); 
                     None 
                 },
                 '(' => Some(self.simple_token(Token::LeftParen)),
@@ -119,11 +119,10 @@ impl<'a> super::ParserState<'a> {
                 _ if c.is_numeric() => Some(self.get_number()?),
                 _ if c.is_uppercase() => Some(self.get_modcon()?),
                 _ if c.is_lowercase() => Some(self.get_varid()?),
-                _ if is_symbolic(*c) => Some(self.get_symbol()?),
+                _ if is_symbolic(*c) => self.get_symbol()?,
                 _ => {
-                    let pos = *p;
                     let ch = *c;
-                    self.lex_error(format!("Lexing failed at {} char:{}", pos,  ch).as_str())?;
+                    self.lex_error(format!("Lexing failed at illegal char: {}", ch).as_str())?;
                     None
                 }
             }; 
@@ -137,14 +136,22 @@ impl<'a> super::ParserState<'a> {
 
     fn get_string(&mut self) -> Result<Annotated<Token>, ParseError> {
         let mut result = String::new();
-        self.chars.next();
-        while let Some((p, c)) = self.chars.next() {
+        self.next();
+        while let Some((p, c)) = self.next() {
             match c {
                 '"' => {
-                    return Ok(self.token(Token::String(result), p));
+                    return Ok(self.token(Token::String(result)));
                 },
                 '\\' => {
-                    if let Some(c) = self.read_escape(true)? {
+                    if self.peek()?.is_whitespace() {
+                        let end = self.snarf(|c| char::is_whitespace(*c));
+                        if self.peek()? == '\'' {
+                            self.advance(1);
+                        } else {
+                            return self.lex_error("Gap in string literal can only contain whitespace");
+                        }
+                    } else {
+                        let c = self.read_escape(true)?;
                         result.push(c);
                     }
                 }
@@ -155,70 +162,57 @@ impl<'a> super::ParserState<'a> {
     }
 
     fn get_char(&mut self) -> Result<Annotated<Token>, ParseError> {
-        self.chars.next();
-        if let Some((_, c)) = self.chars.next() {
+        self.next();
+        if let Some((_, c)) = self.next() {
             let ch = match c {
                 '\\' => {
-                    if let Some(c) = self.read_escape(false)? {
-                        c
-                    } else {
-                        return self.lex_error("Whitespace escape in char literal isn't allowed.");
-                    }
+                    self.read_escape(false)?
                 }
                 c => c
             };
-            if let Some((p, '\'')) = self.chars.next() {
-                return Ok(self.token(Token::Char(ch), p));
+            if self.check_prefix("'") {
+                self.advance(1);
+                return Ok(self.token(Token::Char(ch)));
             }
         }
         self.lex_error("missing ' at end of char literal")
     }
 
-    fn read_escape(&mut self, for_string : bool) -> Result<Option<char>, ParseError> {
-        // TODO: implement
-        self.chars.next(); // skippity
-        Ok(None)
+    fn read_escape(&mut self, for_string : bool) -> Result<char, ParseError> {
+        unimplemented!()
     }
 
 
     fn get_number(&mut self) -> Result<Annotated<Token>, ParseError> {
         if self.check_prefix("0x") || self.check_prefix("0X") {
             self.advance(2);
-            let stop = self.snarf(char::is_ascii_hexdigit);
-            return Ok(self.token(Token::Integer(self.src[self.pos..stop].to_string()), stop));
+            let stop = self.snarf(char::is_ascii_hexdigit)?;
+            return Ok(self.token(Token::Integer(self.src[self.token_start..stop].to_string())));
         }
         if self.check_prefix("0o") || self.check_prefix("0O") {
             self.advance(2);
-            let stop = self.snarf(|c| *c >= '0' && *c <= '7');
-            return Ok(self.token(Token::Integer(self.src[self.pos..stop].to_string()), stop));
+            let stop = self.snarf(|c| *c >= '0' && *c <= '7')?;
+            return Ok(self.token(Token::Integer(self.src[self.token_start..stop].to_string())));
         }
-        let stop = self.snarf(char::is_ascii_digit);
-        if let Some((p, ch)) = self.chars.peek() {
-            let mut is_float = false;
-            let mut float_end = if *ch == '.' {
-                is_float = true;
+        let mut stop = self.snarf(char::is_ascii_digit)?;
+        let mut next = self.peek()?;
+        if next == '.' || next == 'e' || next == 'E' {
+            if next == '.' {
                 self.advance(1);
-                self.snarf(char::is_ascii_digit)
-            } else {
-                *p
-            };
-            if let Some((p, ch)) = self.chars.peek() {
-                if *ch == 'e' || *ch == 'E' {
-                    is_float = true;
+                stop = self.snarf(char::is_ascii_digit)?;
+                next = self.peek()?
+            }
+            if next == 'e' || next == 'E' {
                     self.advance(1);
-                    if let Some((_, c)) = self.chars.peek() {
-                        if *c == '+' || *c == '-' {
-                            self.advance(1);
-                        }
+                    let sign = self.peek()?;
+                    if sign == '+' || sign == '-' {
+                        self.advance(1);
                     }
-                    float_end = self.snarf(char::is_ascii_digit);
-                }
+                    stop = self.snarf(char::is_ascii_digit)?;
             }
-            if is_float {
-                return Ok(self.token(Token::Float(self.src[self.pos..float_end].parse()?), float_end));
-            }
+            return Ok(self.token(Token::Float(self.src[self.token_start..stop].parse()?)));
         }
-        Ok(self.token(Token::Integer(self.src[self.pos..stop].to_string()), stop))
+        Ok(self.token(Token::Integer(self.src[self.token_start..stop].to_string())))
     }
 
     fn get_modcon(&mut self) -> Result<Annotated<Token>, ParseError> {
@@ -230,7 +224,7 @@ impl<'a> super::ParserState<'a> {
         unimplemented!()
     }
 
-    fn get_symbol(&mut self) -> Result<Annotated<Token>, ParseError> {
+    fn get_symbol(&mut self) -> Result<Option<Annotated<Token>>, ParseError> {
         unimplemented!()
     }
 
@@ -238,20 +232,26 @@ impl<'a> super::ParserState<'a> {
         unimplemented!()
     }
 
-    fn snarf(&mut self, pred : impl Fn (&char) -> bool) -> usize {
-        while let Some((p, ch)) = self.chars.peek() {
+    fn snarf(&mut self, pred : impl Fn (&char) -> bool) -> Result<usize, ParseError> {
+        let next = self.chars.peek();
+        match next {
+            None => return self.lex_error("Unexpected end of input"),
+            Some((_, ch)) if !pred(ch) => return self.lex_error("Nothing to snarf"),
+            _ => self.advance(1)
+        };
+        while let Some((_, ch)) = self.chars.peek() {
             if pred(ch) {
-                self.chars.next();
+                self.next();
             } else {
-                return *p;
+                break;
             }
         }
-        self.pos
+        Ok(self.pos)
     }
 
     fn advance(&mut self, n : usize) {
         for _ in 0..n {
-            self.chars.next();
+            self.next();
         }
     }
 
@@ -259,16 +259,32 @@ impl<'a> super::ParserState<'a> {
         self.src[self.pos..].starts_with(what)
     }
 
-    fn simple_token(&mut self, token : Token) -> Annotated<Token> {
-        self.chars.next();
-        Annotated { annotations: Vec::new(), location:  (self.pos, self.pos+1), value: token }
+    fn peek(&mut self) -> Result<char, ParseError> {
+        if let Some((_, ch)) = self.chars.peek() {
+            Ok(*ch)
+        } else {
+            self.lex_error("Unexpected end of file")
+        }
     }
 
-    fn token(&mut self, token : Token, to : usize) -> Annotated<Token> {
-        Annotated { annotations: Vec::new(), location:  (self.pos, to), value: token }
+    fn next(&mut self) -> Option<(usize, char)> {
+        let item = self.chars.next();
+        if let  Some((p, _)) = self.chars.peek() {
+            self.pos = *p;
+        }
+        item
+    }
+
+    fn simple_token(&mut self, token : Token) -> Annotated<Token> {
+        self.next();
+        Annotated { annotations: Vec::new(), location:  (self.token_start, self.token_start+1), value: token }
+    }
+
+    fn token(&mut self, token : Token) -> Annotated<Token> {
+        Annotated { annotations: Vec::new(), location:  (self.token_start, self.pos), value: token }
     }
 
     fn lex_error<T>(&self, msg : &str) -> Result<T, ParseError> {
-        Err(ParseError { msg: msg.to_string(), loc: (self.pos, self.pos) })
+        Err(ParseError { msg: msg.to_string(), loc: (self.token_start, self.pos) })
     }
 }

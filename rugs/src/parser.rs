@@ -41,6 +41,7 @@ pub (self) struct ParserState<'a> {
     queue : VecDeque<Annotated<Token>>,
     newlines : Vec<usize>,
     pos : usize,
+    token_start : usize,
     column : usize
 }
 
@@ -52,6 +53,7 @@ impl<'a> ParserState<'a> {
             queue: VecDeque::new(),
             newlines: Vec::new(),
             pos: 0,
+            token_start: 0,
             column: 0
         }
     }

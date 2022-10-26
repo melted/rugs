@@ -73,7 +73,7 @@ fn is_symbolic(c : char) -> bool {
 }
 
 fn is_identifier_char(c : char) -> bool {
-    c.is_alphanumeric() || c == '\''
+    c.is_alphanumeric() || c == '\'' || c == '_'
 }
 
 impl<'a> super::ParserState<'a> {
@@ -118,7 +118,7 @@ impl<'a> super::ParserState<'a> {
                 '\'' => Some(self.get_char()?),
                 _ if c.is_numeric() => Some(self.get_number()?),
                 _ if c.is_uppercase() => Some(self.get_modcon()?),
-                _ if c.is_lowercase() => Some(self.get_varid()?),
+                _ if c.is_lowercase() || *c == '_' => Some(self.get_varid()?),
                 _ if is_symbolic(*c) => self.get_symbol()?,
                 _ => {
                     let ch = *c;
@@ -278,7 +278,7 @@ impl<'a> super::ParserState<'a> {
         let mut not_modid = false;
         let mut last_dot = self.pos;
         loop {
-            self.snarf(|c| is_identifier_char(*c));
+            self.snarf(|c| is_identifier_char(*c))?;
             if let Some((p, '.')) = self.chars.peek() {
                 qualified = true;
                 last_dot = *p;
@@ -295,7 +295,7 @@ impl<'a> super::ParserState<'a> {
             let module = self.src[self.token_start..last_dot].to_string();
             if not_modid {
                 match self.peek()? {
-                    c if c.is_lowercase() => {
+                    c if c.is_lowercase() || c == '_' => {
                         let t = self.get_varid()?;
                         match t.value {
                             Token::VarId(s) => Ok(self.token(Token::QVarId(module, s))),
@@ -327,15 +327,92 @@ impl<'a> super::ParserState<'a> {
     }
 
     fn get_varid(&mut self) -> Result<Annotated<Token>, ParseError> {
-        unimplemented!()
+        let start = self.pos;
+        let end = self.snarf(|c| is_identifier_char(*c))?;
+        let id = &self.src[start..end];
+        match id {
+            "case" => Ok(self.token(Token::Case)),
+            "class" => Ok(self.token(Token::Class)),
+            "data" => Ok(self.token(Token::Data)),
+            "default" => Ok(self.token(Token::Default)),
+            "deriving" => Ok(self.token(Token::Deriving)),
+            "do" => Ok(self.token(Token::Do)),
+            "else" => Ok(self.token(Token::Else)),
+            "foreign" => Ok(self.token(Token::Foreign)),
+            "if" => Ok(self.token(Token::If)),
+            "import" => Ok(self.token(Token::Import)),
+            "in" => Ok(self.token(Token::In)),
+            "infix" => Ok(self.token(Token::Infix)),
+            "infixl" => Ok(self.token(Token::Infixl)),
+            "infixr" => Ok(self.token(Token::Infixr)),
+            "instance" => Ok(self.token(Token::Instance)),
+            "let" => Ok(self.token(Token::Let)),
+            "module" => Ok(self.token(Token::Module)),
+            "newtype" => Ok(self.token(Token::Newtype)),
+            "of" => Ok(self.token(Token::Of)),
+            "then" => Ok(self.token(Token::Then)),
+            "type" => Ok(self.token(Token::Type)),
+            "where" => Ok(self.token(Token::Where)),
+            "_" => Ok(self.token(Token::Underscore)),
+            _ => Ok(self.token(Token::VarId(id.to_string())))
+        }
     }
 
     fn get_symbol(&mut self) -> Result<Option<Annotated<Token>>, ParseError> {
-        unimplemented!()
+        let start = self.pos;
+        let end = self.snarf(|c| is_symbolic(*c))?;
+        let id = &self.src[start..end];
+        match id {
+            "--" => {
+                while let Some((p, c)) = self.next() {
+                    if c == '\n' {
+                        break;
+                    }
+                }
+                Ok(None)
+            }
+            ".." => Ok(Some(self.token(Token::DotDot))),
+            ":" => Ok(Some(self.token(Token::Colon))),
+            "::" => Ok(Some(self.token(Token::DoubleColon))),
+            "=" => Ok(Some(self.token(Token::Equals))),
+            "\\" => Ok(Some(self.token(Token::Backslash))),
+            "|" => Ok(Some(self.token(Token::Bar))),
+            "<-" => Ok(Some(self.token(Token::LeftArrow))),
+            "->" => Ok(Some(self.token(Token::RightArrow))),
+            "@" => Ok(Some(self.token(Token::At))),
+            "~" => Ok(Some(self.token(Token::Tilde))),
+            "=>" => Ok(Some(self.token(Token::DoubleArrow))),
+            _ => {
+                if id.starts_with(':') {
+                    Ok(Some(self.token(Token::ConSym(id.to_string()))))
+                } else {
+                    Ok(Some(self.token(Token::VarSym(id.to_string()))))
+                }
+            }
+        }
     }
 
-    fn read_block_comment(&mut self) -> Result<Annotated<Token>, ParseError> {
-        unimplemented!()
+    fn read_block_comment(&mut self) -> Result<(), ParseError> {
+        let start = self.pos;
+        // TODO: Collect pragmas and doc comments.
+        if self.check_prefix("{-#") {
+            // It's a pragma
+        }
+        self.advance(2);
+        loop {
+            if self.check_prefix("-}") {
+                break;
+            }
+            if self.check_prefix("{-") {
+                self.read_block_comment()?
+            }
+            let x = self.next();
+            if x.is_none() {
+                return self.lex_error("Unterminated block comment");
+            }
+        }
+        self.advance(2);
+        Ok(())
     }
 
     fn snarf(&mut self, pred : impl Fn (&char) -> bool) -> Result<usize, ParseError> {

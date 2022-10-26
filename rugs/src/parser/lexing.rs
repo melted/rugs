@@ -274,8 +274,56 @@ impl<'a> super::ParserState<'a> {
     }
 
     fn get_modcon(&mut self) -> Result<Annotated<Token>, ParseError> {
-        
-        unimplemented!()
+        let mut qualified = false;
+        let mut not_modid = false;
+        let mut last_dot = self.pos;
+        loop {
+            self.snarf(|c| is_identifier_char(*c));
+            if let Some((p, '.')) = self.chars.peek() {
+                qualified = true;
+                last_dot = *p;
+                self.advance(1);
+                if !char::is_uppercase(self.peek()?) {
+                    not_modid = true;
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        if qualified {
+            let module = self.src[self.token_start..last_dot].to_string();
+            if not_modid {
+                match self.peek()? {
+                    c if c.is_lowercase() => {
+                        let t = self.get_varid()?;
+                        match t.value {
+                            Token::VarId(s) => Ok(self.token(Token::QVarId(module, s))),
+                            _ => self.lex_error("Invalid qualified name")
+                        }
+                    },
+                    c if is_symbolic(c) => {
+                        let t = self.get_symbol()?;
+                        if let Some(tok) = t {
+                            match tok.value {
+                                Token::VarSym(s) => Ok(self.token(Token::QVarSym(module, s))),
+                                Token::ConSym(s) => Ok(self.token(Token::QConSym(module, s))),
+                                _ => self.lex_error("Invalid qualified name")
+                            }
+                        } else {
+                            self.lex_error("Invalid qualified name")
+                        }
+                    },
+                    _ => {
+                        self.lex_error("Invalid qualified name")
+                    }
+                }
+            } else {
+                Ok(self.token(Token::QConId(module, self.src[last_dot+1..self.pos].to_string())))
+            }
+        } else {
+            Ok(self.token(Token::ConId(self.src[self.token_start..self.pos].to_string())))
+        }
     }
 
     fn get_varid(&mut self) -> Result<Annotated<Token>, ParseError> {
@@ -335,7 +383,7 @@ impl<'a> super::ParserState<'a> {
 
     fn simple_token(&mut self, token : Token) -> Annotated<Token> {
         self.next();
-        Annotated { annotations: Vec::new(), location:  (self.token_start, self.token_start+1), value: token }
+        self.token(token)
     }
 
     fn token(&mut self, token : Token) -> Annotated<Token> {

@@ -65,12 +65,15 @@ pub struct ParseError {
     loc : (usize, usize)
 }
 
+// TODO: A renderer for ParseError that shows the location by row and col.
 impl ParseError {
     pub fn new(what : &str, loc : (usize, usize)) -> ParseError {
         ParseError { msg: what.to_string(), loc }
     }
 }
 
+// TODO: Using these loses the position, so the errors should be
+// intercepted at the call site and these removed.
 impl From<ParseFloatError> for ParseError {
     fn from(value: ParseFloatError) -> Self {
         ParseError { msg: value.to_string(), loc: (0,0) }

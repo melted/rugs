@@ -150,8 +150,10 @@ impl<'a> super::ParserState<'a> {
                         } else {
                             return self.lex_error("Gap in string literal can only contain whitespace");
                         }
+                    } if self.peek()? == '&' {
+                        self.advance(1);
                     } else {
-                        let c = self.read_escape(true)?;
+                        let c = self.read_escape()?;
                         result.push(c);
                     }
                 }
@@ -166,7 +168,7 @@ impl<'a> super::ParserState<'a> {
         if let Some((_, c)) = self.next() {
             let ch = match c {
                 '\\' => {
-                    self.read_escape(false)?
+                    self.read_escape()?
                 }
                 c => c
             };
@@ -178,10 +180,66 @@ impl<'a> super::ParserState<'a> {
         self.lex_error("missing ' at end of char literal")
     }
 
-    fn read_escape(&mut self, for_string : bool) -> Result<char, ParseError> {
-        unimplemented!()
+    fn read_escape(&mut self) -> Result<char, ParseError> {
+        let asciis = ["NUL", "SOH",  "STX", "ETX", "EOT",
+        "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF" ,"CR" ,"SO" ,"SI" ,"DLE",
+        "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN",
+        "EM", "SUB", "ESC", "FS", "GS", "RS", "US", "SP", "DEL"];
+        let ch = match self.peek()? {
+            'a' => '\x07',
+            'b' => '\x08',
+            'f' => '\x0c',
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            'v' => '\x0b',
+            '\\' => '\\',
+            '\"' => '"',
+            '\'' => '\'',
+            '^' => {
+                self.advance(1);
+                let ch = self.peek()?;
+                let v : u32 = ch.into();
+                if v >= 64 && v < 96 {
+                    char::from((v - 64) as u8)
+                } else {
+                    return self.lex_error("Invalid ctrl escape");
+                }
+            },
+            'o' => {
+                return self.get_codepoint(|c| *c >= '0' && *c <= '7', 8);
+            },
+            'x' => {
+                return self.get_codepoint(char::is_ascii_hexdigit, 16);
+            },
+            c if c.is_ascii_digit() => {
+                return self.get_codepoint(char::is_ascii_digit, 10);
+            },
+            _ => {
+                for (i, s) in asciis.into_iter().enumerate() {
+                    if self.check_prefix(s) {
+                        self.advance(s.len());
+                        let c = char::from(i as u8); 
+                        return Ok(c);
+                    }
+                }
+                return self.lex_error("Invalid escape in literal");
+            }
+        };
+        self.advance(1);
+        Ok(ch)
     }
 
+    fn get_codepoint(&mut self, pred : impl Fn (&char) -> bool, radix : u32) -> Result<char, ParseError> {
+        let start = self.pos;
+        let stop = self.snarf(pred)?;
+        let code = u32::from_str_radix(&self.src[start..stop], radix)?;
+        if let Some(ch) = char::from_u32(code) {
+            Ok(ch)
+        } else {
+            self.lex_error("Invalid unicode codepoint in escape")
+        }
+    }
 
     fn get_number(&mut self) -> Result<Annotated<Token>, ParseError> {
         if self.check_prefix("0x") || self.check_prefix("0X") {

@@ -1,7 +1,7 @@
 mod tests;
 mod lexing;
 
-use std::num::ParseFloatError;
+use std::num::{ParseFloatError, ParseIntError};
 use std::{collections::VecDeque, io::Write};
 use std::iter::Peekable;
 use std::str::CharIndices;
@@ -73,6 +73,12 @@ impl ParseError {
 
 impl From<ParseFloatError> for ParseError {
     fn from(value: ParseFloatError) -> Self {
+        ParseError { msg: value.to_string(), loc: (0,0) }
+    }
+}
+
+impl From<ParseIntError> for ParseError {
+    fn from(value: ParseIntError) -> Self {
         ParseError { msg: value.to_string(), loc: (0,0) }
     }
 }

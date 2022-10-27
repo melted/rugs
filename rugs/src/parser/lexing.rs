@@ -1,3 +1,5 @@
+use num_bigint::BigInt;
+use num_traits::Num;
 use super::{ParserState, ParseError};
 use crate::ast::Annotated;
 
@@ -11,7 +13,7 @@ pub enum Token {
     QConId(String, String),
     QVarSym(String, String),
     QConSym(String, String),
-    Integer(String),
+    Integer(BigInt),
     Float(f64),
     Char(char),
     String(String),
@@ -244,13 +246,17 @@ impl<'a> super::ParserState<'a> {
     fn get_number(&mut self) -> Result<Annotated<Token>, ParseError> {
         if self.check_prefix("0x") || self.check_prefix("0X") {
             self.advance(2);
+            let start = self.pos;
             let stop = self.snarf(char::is_ascii_hexdigit)?;
-            return Ok(self.token(Token::Integer(self.src[self.token_start..stop].to_string())));
+            let bigint = BigInt::from_str_radix(&self.src[start..stop], 16)?;
+            return Ok(self.token(Token::Integer(bigint)));
         }
         if self.check_prefix("0o") || self.check_prefix("0O") {
             self.advance(2);
+            let start = self.pos;
             let stop = self.snarf(|c| *c >= '0' && *c <= '7')?;
-            return Ok(self.token(Token::Integer(self.src[self.token_start..stop].to_string())));
+            let bigint = BigInt::from_str_radix(&self.src[start..stop], 8)?;
+            return Ok(self.token(Token::Integer(bigint)));
         }
         let mut stop = self.snarf(char::is_ascii_digit)?;
         let mut next = self.peek()?;
@@ -270,7 +276,8 @@ impl<'a> super::ParserState<'a> {
             }
             return Ok(self.token(Token::Float(self.src[self.token_start..stop].parse()?)));
         }
-        Ok(self.token(Token::Integer(self.src[self.token_start..stop].to_string())))
+        let bigint = BigInt::from_str_radix(&self.src[self.token_start..stop], 10)?;
+        Ok(self.token(Token::Integer(bigint)))
     }
 
     fn get_modcon(&mut self) -> Result<Annotated<Token>, ParseError> {

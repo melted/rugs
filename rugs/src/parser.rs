@@ -6,6 +6,8 @@ use std::{collections::VecDeque, io::Write};
 use std::iter::Peekable;
 use std::str::CharIndices;
 
+use num_bigint::ParseBigIntError;
+
 use crate::ast::{Annotated, Module, Expression};
 
 use self::lexing::Token;
@@ -82,6 +84,12 @@ impl From<ParseFloatError> for ParseError {
 
 impl From<ParseIntError> for ParseError {
     fn from(value: ParseIntError) -> Self {
+        ParseError { msg: value.to_string(), loc: (0,0) }
+    }
+}
+
+impl From<ParseBigIntError> for ParseError {
+    fn from(value: ParseBigIntError) -> Self {
         ParseError { msg: value.to_string(), loc: (0,0) }
     }
 }

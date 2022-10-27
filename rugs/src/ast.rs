@@ -47,7 +47,7 @@ pub enum Annotation {
 #[derive(Debug)]
 pub struct Annotated<T> {
     pub annotations : Vec<Annotation>,
-    pub location : (usize, usize),
+    pub location : Option<(usize, usize)>,
     pub value : T
 }
 

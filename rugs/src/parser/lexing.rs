@@ -80,6 +80,10 @@ fn is_identifier_char(c : char) -> bool {
     c.is_alphanumeric() || c == '\'' || c == '_'
 }
 
+fn virtual_token(t : Token) -> Annotated<Token> {
+    Annotated { annotations: Vec::new(), location: None, value: t }
+}
+
 impl<'a> super::ParserState<'a> {
     pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {   
         let tok =  self.next_token()?;
@@ -101,19 +105,19 @@ impl<'a> super::ParserState<'a> {
                 if n > *m {
                     self.layout_stack.push(n);
                 } else {
-                    let token =self.token(Token::VirtualRightBrace);
+                    let token = virtual_token(Token::VirtualRightBrace);
                     self.queue.push(token);
                 }
-                return Ok(self.token(Token::VirtualLeftBrace));
+                return Ok(virtual_token(Token::VirtualLeftBrace));
             },
             Token::Indent(n) => {
                 let m = self.layout_stack.last().unwrap_or(&0);
                 if *m == n {
-                    return Ok(self.token(Token::VirtualSemiColon));
+                    return Ok(virtual_token(Token::VirtualSemiColon));
                 } else if n < *m {
                     while self.layout_stack.last().map_or(false,|m| n<*m ) {
                         self.layout_stack.pop();
-                        let token = self.token(Token::VirtualRightBrace);
+                        let token = virtual_token(Token::VirtualRightBrace);
                         self.queue.push(token);
                     }
                     return Ok(self.queue.pop().unwrap()); // YOLO
@@ -137,7 +141,7 @@ impl<'a> super::ParserState<'a> {
                     if *n == 0 {
                         return self.lex_error("Unterminated explicit left brace");
                     }
-                    self.queue.push(Annotated { annotations: Vec::new(), location: (0,0), value: Token::VirtualRightBrace });
+                    self.queue.push(virtual_token(Token::VirtualRightBrace));
                 }
                 self.layout_stack.clear();
                 return Ok(self.queue.pop().unwrap());
@@ -554,7 +558,7 @@ impl<'a> super::ParserState<'a> {
     }
 
     fn token(&mut self, token : Token) -> Annotated<Token> {
-        Annotated { annotations: Vec::new(), location:  (self.token_start, self.pos), value: token }
+        Annotated { annotations: Vec::new(), location:  Some((self.token_start, self.pos)), value: token }
     }
 
     fn lex_error<T>(&self, msg : &str) -> Result<T, ParseError> {

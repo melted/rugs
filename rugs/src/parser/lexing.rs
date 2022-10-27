@@ -63,6 +63,8 @@ pub enum Token {
     At,
     Tilde,
     DoubleArrow,
+    StartLayout(usize),
+    Indent(usize),
     Eof
 }
 
@@ -80,18 +82,80 @@ fn is_identifier_char(c : char) -> bool {
 
 impl<'a> super::ParserState<'a> {
     pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {   
-        if let Some(tok) = self.queue.pop_front() {
-            Ok(tok)
-        } else {
-            self.next_token()
+        let tok =  self.next_token()?;
+        self.check_layout_start(&tok);
+        self.layout(tok)
+    }
+
+    fn check_layout_start(&mut self, tok: &Annotated<Token>) {
+        match tok.value {
+            Token::Let | Token::Where | Token::Do | Token::Of => { self.layout_start = true; }
+            _ => ()
         }
     }
 
+    fn layout(&mut self, tok: Annotated<Token>) -> Result<Annotated<Token>, ParseError> {
+        match tok.value {
+            Token::StartLayout(n) => {
+                let m = self.layout_stack.last().unwrap_or(&0);
+                if n > *m {
+                    self.layout_stack.push(n);
+                } else {
+                    let token =self.token(Token::VirtualRightBrace);
+                    self.queue.push(token);
+                }
+                return Ok(self.token(Token::VirtualLeftBrace));
+            },
+            Token::Indent(n) => {
+                let m = self.layout_stack.last().unwrap_or(&0);
+                if *m == n {
+                    return Ok(self.token(Token::VirtualSemiColon));
+                } else if n < *m {
+                    while self.layout_stack.last().map_or(false,|m| n<*m ) {
+                        self.layout_stack.pop();
+                        let token = self.token(Token::VirtualRightBrace);
+                        self.queue.push(token);
+                    }
+                    return Ok(self.queue.pop().unwrap()); // YOLO
+                } else {
+                    return self.get_next_token() // Recursing should be fine as tailcall
+                }
+            },
+            Token::LeftBrace => {
+                self.layout_stack.push(0);
+            },
+            Token::RightBrace => {
+                let concrete = self.layout_stack.pop();
+                match concrete {
+                    Some(0) => (),
+                    _ => return self.lex_error("An explicit left brace must be matched with an explicit right brace")
+                }
+            },
+            Token::Eof => {
+                self.queue.push(tok);
+                for n in &self.layout_stack {
+                    if *n == 0 {
+                        return self.lex_error("Unterminated explicit left brace");
+                    }
+                    self.queue.push(Annotated { annotations: Vec::new(), location: (0,0), value: Token::VirtualRightBrace });
+                }
+                self.layout_stack.clear();
+                return Ok(self.queue.pop().unwrap());
+            }
+            _ => {}
+        }
+        Ok(tok)
+    }
+
     fn next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
+        if let Some(tok) = self.queue.pop() {
+            return Ok(tok);
+        }
         while let Some((p, c)) = self.chars.peek() {
             self.token_start = *p;
             let tok = match *c {
                 '\n' => {
+                    self.indent = None;
                     self.newlines.push(*p);
                     self.next();
                     None
@@ -108,6 +172,7 @@ impl<'a> super::ParserState<'a> {
                 ',' => Some(self.simple_token(Token::Comma)),
                 ';' => Some(self.simple_token(Token::Semicolon)),
                 '{' => {
+                    self.layout_start = false;
                     if self.check_prefix("{-") {
                         self.read_block_comment()?;
                         None
@@ -127,13 +192,31 @@ impl<'a> super::ParserState<'a> {
                     self.lex_error(format!("Lexing failed at illegal char: {}", ch).as_str())?;
                     None
                 }
-            }; 
+            };
 
             if let Some(tok) = tok {
+                let latest_newline = self.newlines.last().unwrap_or(&0);
+                let indent = self.token_start - latest_newline;
+                if self.layout_start {
+                    self.layout_start = false;
+                    self.queue.push(tok);
+                    return Ok(self.token(Token::StartLayout(indent+1)));
+                } else if self.indent.is_none() {
+                    self.indent = Some(indent);
+                    self.queue.push(tok);
+                    return Ok(self.token(Token::Indent(indent+1)));
+                }
                 return Ok(tok);
             }
         }
-        Ok(self.simple_token(Token::Eof))
+        let eof = self.simple_token(Token::Eof);
+        if self.layout_start {
+            self.layout_start = false;
+            self.queue.push(eof);
+            Ok(self.token(Token::StartLayout(0)))
+        } else {
+            Ok(eof)
+        }
     }
 
     fn get_string(&mut self) -> Result<Annotated<Token>, ParseError> {

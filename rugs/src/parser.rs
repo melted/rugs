@@ -1,10 +1,11 @@
 mod tests;
 mod lexing;
+mod expression;
 
 use std::error::Error;
 use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
-use std::{collections::VecDeque, io::Write};
+use std::io::Write;
 use std::iter::Peekable;
 use std::str::CharIndices;
 
@@ -42,11 +43,13 @@ pub fn dump_tokens(code : &str, output : &mut impl Write) -> Result<(), ParseErr
 pub (self) struct ParserState<'a> {
     src : &'a str,
     chars : Peekable<CharIndices<'a>>,
-    queue : VecDeque<Annotated<Token>>,
+    queue : Vec<Annotated<Token>>,
     newlines : Vec<usize>,
     pos : usize,
     token_start : usize,
-    column : usize
+    layout_stack : Vec<usize>,
+    layout_start : bool,
+    indent : Option<usize>,
 }
 
 impl<'a> ParserState<'a> {
@@ -54,11 +57,13 @@ impl<'a> ParserState<'a> {
         ParserState { 
             src: code,
             chars: code.char_indices().peekable(),
-            queue: VecDeque::new(),
+            queue: Vec::new(),
             newlines: Vec::new(),
             pos: 0,
             token_start: 0,
-            column: 0
+            layout_stack: Vec::new(),
+            layout_start: true,
+            indent: None
         }
     }
 }
@@ -79,6 +84,7 @@ impl ParseError {
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("Syntax error: {} at pos {}-{}", self.msg, self.loc.0, self.loc.1))?;
+        Ok(())
     }
 }
 

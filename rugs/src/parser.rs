@@ -1,6 +1,8 @@
 mod tests;
 mod lexing;
 
+use std::error::Error;
+use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
 use std::{collections::VecDeque, io::Write};
 use std::iter::Peekable;
@@ -74,6 +76,15 @@ impl ParseError {
     }
 }
 
+impl Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("Syntax error: {} at pos {}-{}", self.msg, self.loc.0, self.loc.1))?;
+    }
+}
+
+impl Error for ParseError {
+
+}
 // TODO: Using these loses the position, so the errors should be
 // intercepted at the call site and these removed.
 impl From<ParseFloatError> for ParseError {

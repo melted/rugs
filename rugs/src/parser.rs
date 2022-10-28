@@ -1,6 +1,7 @@
 mod tests;
 mod lexing;
 mod expression;
+mod helpers;
 
 use std::error::Error;
 use std::fmt::Display;
@@ -18,13 +19,12 @@ use self::lexing::Token;
 pub fn parse(code : &str) -> Result<Module, ParseError> {
     let mut state = ParserState::new(code);
 
-    Err(ParseError::new("bah", (0,0)))
+    Err(ParseError::new("bah", None))
 }
 
 pub fn parse_expression(expr : &str) -> Result<Expression, ParseError> {
     let mut state = ParserState::new(expr);
-
-    Err(ParseError::new("bah", (0,0)))
+    state.parse_expression()
 }
 
 pub fn dump_tokens(code : &str, output : &mut impl Write) -> Result<(), ParseError> {
@@ -35,7 +35,6 @@ pub fn dump_tokens(code : &str, output : &mut impl Write) -> Result<(), ParseErr
         writeln!(output, "{:?}", t).unwrap(); // YOLO
         if *t == Token::Eof { break; }
     }
-
     Ok(())
 }
 
@@ -73,19 +72,24 @@ impl<'a> ParserState<'a> {
 #[derive(Debug)]
 pub struct ParseError {
     msg : String,
-    loc : (usize, usize)
+    loc : Option<(usize, usize)>
 }
 
 // TODO: A renderer for ParseError that shows the location by row and col.
 impl ParseError {
-    pub fn new(what : &str, loc : (usize, usize)) -> ParseError {
+    pub fn new(what : &str, loc : Option<(usize, usize)>) -> ParseError {
         ParseError { msg: what.to_string(), loc }
     }
 }
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("Syntax error: {} at pos {}-{}", self.msg, self.loc.0, self.loc.1))?;
+        match self.loc {
+            Some((start, end)) => 
+                f.write_fmt(format_args!("Syntax error: {} at pos {}-{}", self.msg, start, end))?,
+            None =>
+                f.write_fmt(format_args!("Syntax error: {}, no location available", self.msg))?
+        }
         Ok(())
     }
 }
@@ -97,18 +101,18 @@ impl Error for ParseError {
 // intercepted at the call site and these removed.
 impl From<ParseFloatError> for ParseError {
     fn from(value: ParseFloatError) -> Self {
-        ParseError { msg: value.to_string(), loc: (0,0) }
+        ParseError { msg: value.to_string(), loc: None }
     }
 }
 
 impl From<ParseIntError> for ParseError {
     fn from(value: ParseIntError) -> Self {
-        ParseError { msg: value.to_string(), loc: (0,0) }
+        ParseError { msg: value.to_string(), loc: None }
     }
 }
 
 impl From<ParseBigIntError> for ParseError {
     fn from(value: ParseBigIntError) -> Self {
-        ParseError { msg: value.to_string(), loc: (0,0) }
+        ParseError { msg: value.to_string(), loc: None }
     }
 }

@@ -467,6 +467,7 @@ impl<'a> super::ParserState<'a> {
         let id = &self.src[start..end];
         match id {
             "--" => {
+                // TODO: collect doc comments
                 while let Some((p, c)) = self.next() {
                     if c == '\n' {
                         break;
@@ -571,6 +572,6 @@ impl<'a> super::ParserState<'a> {
     }
 
     fn lex_error<T>(&self, msg : &str) -> Result<T, ParseError> {
-        Err(ParseError { msg: msg.to_string(), loc: (self.token_start, self.pos) })
+        Err(ParseError { msg: msg.to_string(), loc: Some((self.token_start, self.pos)) })
     }
 }

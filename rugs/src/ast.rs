@@ -37,14 +37,14 @@ pub struct Import {
     pub hidden : Vec<String>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Annotation {
     OtherPragma(String),
     Doc(String),
     Comment(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Annotated<T> {
     pub annotations : Vec<Annotation>,
     pub location : Option<(usize, usize)>,

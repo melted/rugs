@@ -85,10 +85,19 @@ fn virtual_token(t : Token) -> Annotated<Token> {
 }
 
 impl<'a> super::ParserState<'a> {
-    pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {   
+    pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
+        if let Some(tok) = self.pushed_back.pop() {
+            return Ok(tok);
+        }
         let tok =  self.next_token()?;
         self.check_layout_start(&tok);
         self.layout(tok)
+    }
+
+    pub (super) fn peek_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
+        let token = self.get_next_token()?;
+        self.pushed_back.push(token.clone());
+        Ok(token)
     }
 
     fn check_layout_start(&mut self, tok: &Annotated<Token>) {

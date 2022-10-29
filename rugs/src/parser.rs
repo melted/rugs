@@ -1,8 +1,11 @@
-mod tests;
-mod lexing;
 mod expression;
 mod helpers;
+mod lexing;
+mod pattern;
+mod tests;
+mod types;
 
+use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::Display;
 use std::num::{ParseFloatError, ParseIntError};
@@ -42,8 +45,8 @@ pub fn dump_tokens(code : &str, output : &mut impl Write) -> Result<(), ParseErr
 pub (self) struct ParserState<'a> {
     src : &'a str,
     chars : Peekable<CharIndices<'a>>,
-    queue : Vec<Annotated<Token>>,
-    pushed_back : Vec<Annotated<Token>>,
+    queue : VecDeque<Annotated<Token>>,
+    pushed_back : VecDeque<Annotated<Token>>,
     newlines : Vec<usize>,
     pos : usize,
     token_start : usize,
@@ -57,8 +60,8 @@ impl<'a> ParserState<'a> {
         ParserState { 
             src: code,
             chars: code.char_indices().peekable(),
-            queue: Vec::new(),
-            pushed_back: Vec::new(),
+            queue: VecDeque::new(),
+            pushed_back: VecDeque::new(),
             newlines: Vec::new(),
             pos: 0,
             token_start: 0,

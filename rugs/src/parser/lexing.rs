@@ -86,17 +86,18 @@ fn virtual_token(t : Token) -> Annotated<Token> {
 
 impl<'a> super::ParserState<'a> {
     pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
-        if let Some(tok) = self.pushed_back.pop() {
+        if let Some(tok) = self.pushed_back.pop_front() {
             return Ok(tok);
         }
         let tok =  self.next_token()?;
         self.check_layout_start(&tok);
-        self.layout(tok)
+        let token = self.layout(tok)?;
+        Ok(token)
     }
 
     pub (super) fn peek_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
         let token = self.get_next_token()?;
-        self.pushed_back.push(token.clone());
+        self.pushed_back.push_back(token.clone());
         Ok(token)
     }
 
@@ -115,7 +116,7 @@ impl<'a> super::ParserState<'a> {
                     self.layout_stack.push(n);
                 } else {
                     let token = virtual_token(Token::VirtualRightBrace);
-                    self.queue.push(token);
+                    self.queue.push_back(token);
                 }
                 return Ok(virtual_token(Token::VirtualLeftBrace));
             },
@@ -127,9 +128,9 @@ impl<'a> super::ParserState<'a> {
                     while self.layout_stack.last().map_or(false,|m| n<*m ) {
                         self.layout_stack.pop();
                         let token = virtual_token(Token::VirtualRightBrace);
-                        self.queue.push(token);
+                        self.queue.push_back(token);
                     }
-                    return Ok(self.queue.pop().unwrap()); // YOLO
+                    return Ok(self.queue.pop_front().unwrap()); // YOLO
                 } else {
                     return self.get_next_token() // Recursing should be fine as tailcall
                 }
@@ -145,15 +146,15 @@ impl<'a> super::ParserState<'a> {
                 }
             },
             Token::Eof => {
-                self.queue.push(tok);
+                self.queue.push_back(tok);
                 for n in &self.layout_stack {
                     if *n == 0 {
                         return self.lex_error("Unterminated explicit left brace");
                     }
-                    self.queue.push(virtual_token(Token::VirtualRightBrace));
+                    self.queue.push_back(virtual_token(Token::VirtualRightBrace));
                 }
                 self.layout_stack.clear();
-                return Ok(self.queue.pop().unwrap());
+                return Ok(self.queue.pop_front().unwrap());
             }
             _ => {}
         }
@@ -161,7 +162,7 @@ impl<'a> super::ParserState<'a> {
     }
 
     fn next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
-        if let Some(tok) = self.queue.pop() {
+        if let Some(tok) = self.queue.pop_front() {
             return Ok(tok);
         }
         while let Some((p, c)) = self.chars.peek() {
@@ -212,11 +213,11 @@ impl<'a> super::ParserState<'a> {
                 let indent = self.token_start - latest_newline;
                 if self.layout_start {
                     self.layout_start = false;
-                    self.queue.push(tok);
+                    self.queue.push_back(tok);
                     return Ok(self.token(Token::StartLayout(indent+1)));
                 } else if self.indent.is_none() {
                     self.indent = Some(indent);
-                    self.queue.push(tok);
+                    self.queue.push_back(tok);
                     return Ok(self.token(Token::Indent(indent+1)));
                 }
                 return Ok(tok);
@@ -225,7 +226,7 @@ impl<'a> super::ParserState<'a> {
         let eof = self.simple_token(Token::Eof);
         if self.layout_start {
             self.layout_start = false;
-            self.queue.push(eof);
+            self.queue.push_back(eof);
             Ok(self.token(Token::StartLayout(0)))
         } else {
             Ok(eof)

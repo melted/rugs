@@ -39,14 +39,14 @@ pub struct Import {
     pub hidden : Vec<String>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Annotation {
     OtherPragma(String),
     Doc(String),
     Comment(String)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Annotated<T> {
     pub annotations : Vec<Annotation>,
     pub location : Option<(usize, usize)>,
@@ -86,15 +86,36 @@ pub enum Context {
     Mmm
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Operator {
+    pub module : Option<String>,
+    pub constructor : bool,
+    pub ticked : bool,
+    pub name : String
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Identifier {
+    pub module : Option<String>,
+    pub constructor : bool,
+    pub operator : bool,
+    pub name : String
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Var(String),
     Const(Const),
     App(Box<Expression>, Vec<Expression>),
-    Infix(String, Box<Expression>, Box<Expression>),
+    Infix(Operator, Box<Expression>, Box<Expression>),
     Typed(Box<Expression>, Context, Type),
-    Lambda(Vec<Pattern>, Box<Expression>)
+    Lambda(Vec<Pattern>, Box<Expression>),
+    // Apologia for Wrapped: Infix expressions are desugared after parsing because
+    // infix declarations can come after an expression that is affected by them in the source,
+    // until that happens we need to keep track of parenthesized expressions.
+    Wrapped(Box<Expression>),
+    List(Vec<Expression>),
+    Tuple(Vec<Expression>)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -116,8 +137,8 @@ pub fn app(f : Expression, args: Vec<Expression>) -> Expression {
     Expression::App(Box::new(f), args)
 }
 
-pub fn infix(op: &str, left: Expression, right: Expression) -> Expression {
-    Expression::Infix(op.to_string(), Box::new(left), Box::new(right))
+pub fn infix(op: Operator, left: Expression, right: Expression) -> Expression {
+    Expression::Infix(op, Box::new(left), Box::new(right))
 }
 
 pub fn var(name : &str) -> Expression {

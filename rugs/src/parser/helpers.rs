@@ -20,11 +20,9 @@ impl<'a> ParserState<'a> {
             Ok(false)
         }
     }
-
-    
 }
 
-pub (super) fn error(msg : &str, loc : Option<(usize, usize)>) -> Result<(), ParseError>{
+pub (super) fn error<T>(msg : &str, loc : Option<(usize, usize)>) -> Result<T, ParseError>{
     Err(ParseError::new(msg, loc))
 } 
 

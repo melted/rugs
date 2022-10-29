@@ -44,6 +44,3 @@ fn lex_string() {
     assert_eq!(tokens[0].value, Token::String("hello this is a string".to_string()));
     assert_eq!(tokens[1].value, Token::Eof)
 }
-
-
-

@@ -4,7 +4,7 @@ use super::{ParserState, ParseError};
 
 
 impl<'a> ParserState<'a> {
-    fn parse_pattern(&mut self) -> Result<Pattern, ParseError> {
+    pub (super) fn parse_pattern(&mut self) -> Result<Pattern, ParseError> {
         unimplemented!()
     }
 
@@ -14,7 +14,7 @@ impl<'a> ParserState<'a> {
     }
 
     
-    fn parse_apattern(&mut self) -> Result<Pattern, ParseError> {
+    pub (super) fn parse_apattern(&mut self) -> Result<Pattern, ParseError> {
         unimplemented!()
     }
 }

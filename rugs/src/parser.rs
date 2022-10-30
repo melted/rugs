@@ -1,3 +1,4 @@
+mod declaration;
 mod expression;
 mod helpers;
 mod lexing;

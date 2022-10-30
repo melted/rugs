@@ -69,13 +69,39 @@ impl<'a> ParserState<'a> {
         let tok = self.get_next_token()?;
         match tok.value {
             Token::Backslash => {
-               //  let args = Vec::new();
+                let mut args = Vec::new();
                 loop {
-
+                    let pat = self.parse_apattern()?;
+                    args.push(pat);
+                    if self.is_next(Token::RightArrow)? {
+                        break;
+                    }
                 }
+                let exp = self.parse_expression()?;
+                return Ok(lambda(args, exp));
             },
             Token::Let => {
-                unimplemented!()
+                let mut decls = Vec::new();
+                self.expect(Token::LeftBrace)?;
+                loop {
+                    // Rightbraces are sometimes missing, see layout-rules in 10.3
+                    // in the Haskell 2010 report.
+                    if  self.peek_next_token()?.value == Token::In {
+                        self.push_token(Token::RightBrace);
+                    }
+                    if self.is_next(Token::RightBrace)? {
+                        break;
+                    }
+                    let decl = self.parse_declaration()?;
+                    decls.push(decl);
+                    let tok = self.get_next_token()?;
+                    match tok.value {
+                        Token::Semicolon | Token::RightBrace => {},
+                        _ => return error("Unexpected token in let", tok.location)
+                    }
+                    let exp = self.parse_expression()?;
+                    return Ok(let_expression(decls, exp));
+                }
             },
             Token::If => {
                 unimplemented!()
@@ -87,7 +113,6 @@ impl<'a> ParserState<'a> {
                 unimplemented!()
             },
             _ => {
-
             }
         }
         unimplemented!()

@@ -101,6 +101,10 @@ impl<'a> super::ParserState<'a> {
         Ok(token)
     }
 
+    pub (super) fn push_token(&mut self, token : Token) {
+        self.pushed_back.push_front(Annotated { annotations: Vec::new(), location: None, value: token })
+    } 
+
     fn check_layout_start(&mut self, tok: &Annotated<Token>) {
         match tok.value {
             Token::Let | Token::Where | Token::Do | Token::Of => { self.layout_start = true; }

@@ -61,9 +61,74 @@ impl<T> Deref for Annotated<T> {
     }
 }
 
-#[derive(Debug)]
-pub enum Declaration {
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum TypeCon {
+
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeDeclaration {
+
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DataDeclaration {
+
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Constructor {
+
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TopDeclaration {
+    Type(TypeDeclaration),
+    Data(DataDeclaration),
+    Newtype,
+    Class,
+    Instance,
+    Default,
+    Foreign,
+    Decl(Declaration)
+
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Association {
+    Left,
+    Right,
+    NonAssociative
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Guard {
+    Pattern(Pattern, Expression),
+    Decls(Vec<Declaration>),
+    Boolean(Expression)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Binding {
+    Plain(Expression, Vec<Declaration>),
+    Guarded(Expression, Vec<(Vec<Guard>, Expression)>, Vec<Declaration>)
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum FunBind {
+    Plain(Identifier, Vec<Pattern>),
+    Op(Operator, Pattern, Pattern),
+    Wrapped(Box<FunBind>, Vec<Pattern>)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Declaration {
+    TypeDecl(Vec<Identifier>, Context, Type),
+    Fixity(Vec<Operator>, Association, u32),
+    VarBind(Identifier, Binding),
+    FunBind(FunLeft, Binding)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -103,10 +168,20 @@ pub struct Identifier {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct CaseAlt {
+    matcher : Pattern,
+    guards : Vec<Expression>,
+    body : Box<Expression>
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Var(String),
     Const(Const),
     App(Box<Expression>, Vec<Expression>),
+    Let(Vec<Declaration>, Box<Expression>),
+    If(Box<Expression>, Box<Expression>, Box<Expression>),
+    Case(Box<Expression>, Vec<CaseAlt>),
     Infix(Operator, Box<Expression>, Box<Expression>),
     Typed(Box<Expression>, Context, Type),
     Lambda(Vec<Pattern>, Box<Expression>),
@@ -115,7 +190,9 @@ pub enum Expression {
     // until that happens we need to keep track of parenthesized expressions.
     Wrapped(Box<Expression>),
     List(Vec<Expression>),
-    Tuple(Vec<Expression>)
+    Tuple(Vec<Expression>),
+    LabeledCon(Identifier, Vec<(Identifier, Expression)>),
+    LabeledUpdate(Box<Expression>, Vec<(Identifier, Expression)>)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -143,6 +220,14 @@ pub fn infix(op: Operator, left: Expression, right: Expression) -> Expression {
 
 pub fn var(name : &str) -> Expression {
     Expression::Var(name.to_string())
+}
+
+pub fn lambda(args : Vec<Pattern>, exp : Expression) -> Expression {
+    Expression::Lambda(args, Box::new(exp))
+}
+
+pub fn let_expression(decls : Vec<Declaration>, exp : Expression) -> Expression {
+    Expression::Let(decls, Box::new(exp))
 }
 
 pub fn typed(exp :Expression, c: Context, t:Type) -> Expression {

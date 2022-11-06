@@ -1,20 +1,23 @@
 
 //! This module contains the AST data structures that are the output
 //! of the parsing state.
+use std::collections::HashMap;
 
-use std::path::{ Path, PathBuf };
-use std::ops::Deref;
-
+use clap::Id;
 use num_bigint::BigInt;
+
+use crate::location::Location;
 
 #[derive(Debug)]
 pub struct Module {
     pub name : String,
-    pub file : Option<PathBuf>,
-    pub trivia : Vec<Annotated<()>>,
-    pub imports : Vec<Annotated<Import>>,
-    pub exports : Option<Vec<Annotated<String>>>,
-    pub declarations : Vec<Annotated<Declaration>>
+    pub file : Option<String>,
+    pub trivia : Vec<Annotation>,
+    pub annotations : HashMap<NodeId, Annotation>,
+    pub locations : HashMap<NodeId, Location>,
+    pub imports : Vec<Import>,
+    pub exports : Option<Vec<Identifier>>,
+    pub declarations : Vec<TopDeclaration>
 }
 
 impl Module {
@@ -23,6 +26,8 @@ impl Module {
             name: String::new(),
             file: None,
             trivia: Vec::new(),
+            annotations: HashMap::new(),
+            locations: HashMap::new(),
             imports: Vec::new(),
             exports: None,
             declarations: Vec::new()
@@ -32,6 +37,7 @@ impl Module {
 
 #[derive(Debug)]
 pub struct Import {
+    pub id : NodeId,
     pub name : String,
     pub qualified : bool,
     pub alias : Option<String>,
@@ -46,19 +52,17 @@ pub enum Annotation {
     Comment(String)
 }
 
+
 #[derive(Debug, Clone, PartialEq)]
-pub struct Annotated<T> {
-    pub annotations : Vec<Annotation>,
-    pub location : Option<(usize, usize)>,
-    pub value : T
-}
-
-impl<T> Deref for Annotated<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
+pub enum TopDeclaration {
+    Type(TypeDecl),
+    Data(Data),
+    Newtype(Newtype),
+    Class(Class),
+    Instance(Instance),
+    Default(Vec<Type>),
+    Foreign(Foreign),
+    Declaration(Declaration)
 }
 
 
@@ -68,31 +72,101 @@ pub enum TypeCon {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TypeDeclaration {
-
+pub struct TypeDecl {
+    id : NodeId,
+    tycon : Identifier,
+    tyvars : Vec<Identifier>,
+    the_type : Type
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DataDeclaration {
-
+pub struct Data {
+    id : NodeId,
+    tycon : Identifier,
+    tyvars : Vec<Identifier>,
+    constructors : Vec<Constructor>,
+    deriving : Vec<Identifier>
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Newtype {
+    id : NodeId,
+    tycon : Identifier,
+    tyvars : Vec<Identifier>,
+    constructor : Constructor
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Class {
+    id : NodeId,
+    context: Vec<Context>,
+    tycls : Identifier,
+    tyvars : Vec<Identifier>,
+    decls : Vec<Declaration>
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Instance {
+    id : NodeId,
+    context : Vec<Context>,
+    tycon : Identifier,
+    tyvars : Vec<Identifier>,
+    decls : Vec<Declaration>
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Constructor {
-
+    Plain { con: Identifier, the_types: Vec<Type> },
+    Labelled { con: Identifier, fields: Vec<TypeField> }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TopDeclaration {
-    Type(TypeDeclaration),
-    Data(DataDeclaration),
-    Newtype,
-    Class,
-    Instance,
-    Default,
-    Foreign,
-    Decl(Declaration)
+pub struct TypeField {
+    label: Identifier,
+    the_type : Type
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct Foreign {
+    id : NodeId,
+    decl : ForeignDeclaration
+}
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Safety {
+    Unsafe,
+    Safe
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ForeignDeclaration {
+    Import {
+        callconv : String,
+        impent : String,
+        safety : Safety,
+        var : Identifier,
+        ftype : Type
+    },
+    Export {
+        callconv : String,
+        expent : String,
+        var : Identifier,
+        ftype : Type
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Declaration {
+    pub id : NodeId,
+    pub value : DeclarationValue
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DeclarationValue {
+    TypeDecl(Vec<Identifier>, Vec<Context>, Type),
+    Fixity(Vec<Identifier>, Association, u32),
+    VarBind(Identifier, Binding),
+    FunBind(FunBind, Binding)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -101,6 +175,8 @@ pub enum Association {
     Right,
     NonAssociative
 }
+
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Guard {
@@ -119,16 +195,8 @@ pub enum Binding {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FunBind {
     Plain(Identifier, Vec<Pattern>),
-    Op(Operator, Pattern, Pattern),
+    Op(Identifier, Pattern, Pattern),
     Wrapped(Box<FunBind>, Vec<Pattern>)
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Declaration {
-    TypeDecl(Vec<Identifier>, Context, Type),
-    Fixity(Vec<Operator>, Association, u32),
-    VarBind(Identifier, Binding),
-    FunBind(FunLeft, Binding)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -142,22 +210,87 @@ pub enum Const {
 // TODO: Implement
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Na
+    Base(Identifier),
+    Var(Identifier),
+    App(Identifier, Vec<Type>),
+    Fun(Box<Type>, Box<Type>)
 }
 
 // TODO: Implement
 #[derive(Debug, Clone, PartialEq)]
-pub enum Context {
-    Mmm
+pub struct Context {
+    tycls : Identifier,
+    args : Vec<Type>
+}
+
+pub type NodeId = u32;
+
+#[derive(Debug, Clone)]
+pub struct Expression {
+    pub id : NodeId,
+    pub value : Box<ExpressionValue>
+}
+
+impl PartialEq for Expression {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Operator {
-    pub module : Option<String>,
-    pub constructor : bool,
-    pub ticked : bool,
-    pub name : String
+pub enum ExpressionValue {
+    Var(Identifier),
+    Const(Const),
+    App(Expression, Expression),
+    Let(Vec<Declaration>, Expression),
+    If(Expression, Expression, Expression),
+    Case(Expression, Vec<CaseAlt>),
+    Infix(Identifier, Expression, Expression),
+    Typed(Expression, Vec<Context>, Type),
+    Lambda(Vec<Pattern>, Expression),
+    // Apologia for Wrapped: Infix expressions are desugared after parsing because
+    // infix declarations can come after an expression that is affected by them in the source,
+    // until that happens we need to keep track of parenthesized expressions.
+    Wrapped(Expression),
+    List(Vec<Expression>),
+    Tuple(Vec<Expression>),
+    LabeledCon(Identifier, Vec<(Identifier, Expression)>),
+    LabeledUpdate(Expression, Vec<(Identifier, Expression)>)
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CaseAlt {
+    matcher : Pattern,
+    guards : Vec<Expression>,
+    body : Expression
+}
+
+#[derive(Debug, Clone)]
+pub struct Pattern {
+    pub id : NodeId,
+    pub value : Box<PatternValue>
+}
+
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PatternValue {
+    Var(String),
+    As(String, Pattern),
+    Literal(Const),
+    Constructor(String, Vec<Pattern>),
+    InfixConstructor(String, Pattern, Pattern),
+    Labeled(String, Vec<(String, Pattern)>),
+    Wildcard,
+    Tuple(Vec<Pattern>),
+    List(Vec<Pattern>),
+    Irrefutable(Pattern)
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Identifier {
@@ -167,85 +300,103 @@ pub struct Identifier {
     pub name : String
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CaseAlt {
-    matcher : Pattern,
-    guards : Vec<Expression>,
-    body : Box<Expression>
+pub trait AstMaker {
+    fn next_id(&mut self) -> NodeId;
+
+    fn expr(&mut self, value : ExpressionValue) -> Expression {
+        Expression { id: self.next_id(), value: Box::new(value) }
+    }
+
+    fn app(&mut self, f : Expression, arg: Expression) -> Expression {
+        self.expr(ExpressionValue::App(f, arg))
+    }
+
+    fn infix(&mut self, op: Identifier, left: Expression, right: Expression) -> Expression {
+        self.expr(ExpressionValue::Infix(op, left, right))
+    }
+
+
+    fn var(&mut self, name : Identifier) -> Expression {
+        self.expr(ExpressionValue::Var(name))
+    }
+
+    fn lambda(&mut self, args : Vec<Pattern>, exp : Expression) -> Expression {
+        self.expr(ExpressionValue::Lambda(args, exp))
+    }
+
+    fn let_expression(&mut self, decls : Vec<Declaration>, exp : Expression) -> Expression {
+        self.expr(ExpressionValue::Let(decls, exp))
+    }
+
+    fn tuple(&mut self, fields : Vec<Expression>) -> Expression {
+        self.expr(ExpressionValue::Tuple(fields))
+    }
+
+    fn wrapped(&mut self, e : Expression) -> Expression {
+        self.expr(ExpressionValue::Wrapped(e))
+    }
+
+    fn list(&mut self, fields : Vec<Expression>) -> Expression {
+        self.expr(ExpressionValue::Tuple(fields))
+    }
+
+    fn if_expression(&mut self, predicate : Expression, then_exp : Expression, else_exp : Expression) -> Expression {
+        self.expr(ExpressionValue::If(predicate, then_exp, else_exp))
+    }
+
+    fn typed(&mut self, exp :Expression, c: Vec<Context>, t:Type) -> Expression {
+        self.expr(ExpressionValue::Typed(exp, c, t))
+    }
+
+    fn integer(&mut self, n : BigInt) -> Expression {
+        self.expr(ExpressionValue::Const(Const::Integer(n)))
+    }
+
+    fn float(&mut self, x : &f64) -> Expression {
+        self.expr(ExpressionValue::Const(Const::Float(*x)))
+    }
+
+    fn char_const(&mut self, c : &char) -> Expression {
+        self.expr(ExpressionValue::Const(Const::Char(*c)))
+    }
+
+    fn string_const(&mut self, s : &str) -> Expression {
+        self.expr(ExpressionValue::Const(Const::String(s.to_string())))
+    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
-    Var(String),
-    Const(Const),
-    App(Box<Expression>, Vec<Expression>),
-    Let(Vec<Declaration>, Box<Expression>),
-    If(Box<Expression>, Box<Expression>, Box<Expression>),
-    Case(Box<Expression>, Vec<CaseAlt>),
-    Infix(Operator, Box<Expression>, Box<Expression>),
-    Typed(Box<Expression>, Context, Type),
-    Lambda(Vec<Pattern>, Box<Expression>),
-    // Apologia for Wrapped: Infix expressions are desugared after parsing because
-    // infix declarations can come after an expression that is affected by them in the source,
-    // until that happens we need to keep track of parenthesized expressions.
-    Wrapped(Box<Expression>),
-    List(Vec<Expression>),
-    Tuple(Vec<Expression>),
-    LabeledCon(Identifier, Vec<(Identifier, Expression)>),
-    LabeledUpdate(Box<Expression>, Vec<(Identifier, Expression)>)
+
+pub fn varid(name : &str) -> Identifier {
+    Identifier { module: None, constructor: false, operator: false, name: name.to_string() }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Pattern {
-    Var(String),
-    As(String, Box<Pattern>),
-    Literal(Const),
-    Constructor(String, Vec<Pattern>),
-    InfixConstructor(String, Box<Pattern>, Box<Pattern>),
-    Labeled(String, Vec<(String, Pattern)>),
-    Wildcard,
-    Tuple(Vec<Pattern>),
-    List(Vec<Pattern>),
-    Irrefutable(Box<Pattern>)
+pub fn conid(name : &str) -> Identifier {
+    Identifier { module: None, constructor: true, operator: false, name: name.to_string() }
+}
+
+pub fn varsym(name : &str) -> Identifier {
+    Identifier { module: None, constructor: false, operator: true, name: name.to_string() }
+}
+
+pub fn consym(name : &str) -> Identifier {
+    Identifier { module: None, constructor: true, operator: true, name: name.to_string() }
+}
+
+pub fn qvarid(module :&str, name : &str) -> Identifier {
+    Identifier { module: Some(module.to_string()), constructor: false, operator: false, name: name.to_string() }
 }
 
 
-pub fn app(f : Expression, args: Vec<Expression>) -> Expression {
-    Expression::App(Box::new(f), args)
+pub fn qconid(module :&str, name : &str) -> Identifier {
+    Identifier { module: Some(module.to_string()), constructor: true, operator: false, name: name.to_string() }
 }
 
-pub fn infix(op: Operator, left: Expression, right: Expression) -> Expression {
-    Expression::Infix(op, Box::new(left), Box::new(right))
+
+pub fn qvarsym(module :&str, name : &str) -> Identifier {
+    Identifier { module: Some(module.to_string()), constructor: false, operator: true, name: name.to_string() }
 }
 
-pub fn var(name : &str) -> Expression {
-    Expression::Var(name.to_string())
-}
 
-pub fn lambda(args : Vec<Pattern>, exp : Expression) -> Expression {
-    Expression::Lambda(args, Box::new(exp))
-}
-
-pub fn let_expression(decls : Vec<Declaration>, exp : Expression) -> Expression {
-    Expression::Let(decls, Box::new(exp))
-}
-
-pub fn typed(exp :Expression, c: Context, t:Type) -> Expression {
-    Expression::Typed(Box::new(exp), c, t)
-}
-
-pub fn integer(n : BigInt) -> Expression {
-    Expression::Const(Const::Integer(n))
-}
-
-pub fn float(x : &f64) -> Expression {
-    Expression::Const(Const::Float(*x))
-}
-
-pub fn char_const(c : &char) -> Expression {
-    Expression::Const(Const::Char(*c))
-}
-
-pub fn string_const(s : &str) -> Expression {
-    Expression::Const(Const::String(s.to_string()))
+pub fn qconsym(module :&str, name : &str) -> Identifier {
+    Identifier { module: Some(module.to_string()), constructor: true, operator: true, name: name.to_string() }
 }

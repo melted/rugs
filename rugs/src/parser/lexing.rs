@@ -1,91 +1,10 @@
 use num_bigint::BigInt;
 use num_traits::Num;
-use super::{ParserState, ParseError};
-use crate::ast::Annotated;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-    VarId(String),
-    ConId(String),
-    VarSym(String),
-    ConSym(String),
-    QVarId(String, String),
-    QConId(String, String),
-    QVarSym(String, String),
-    QConSym(String, String),
-    Integer(BigInt),
-    Float(f64),
-    Char(char),
-    String(String),
-    LeftParen,
-    RightParen,
-    Comma,
-    Semicolon,
-    VirtualSemiColon,
-    LeftBracket,
-    RightBracket,
-    Backtick,
-    LeftBrace,
-    RightBrace,
-    VirtualLeftBrace,
-    VirtualRightBrace,
-    Case,
-    Class,
-    Data,
-    Default,
-    Deriving,
-    Do,
-    Else,
-    Foreign,
-    If,
-    Import,
-    In,
-    Infix,
-    Infixl,
-    Infixr,
-    Instance,
-    Let,
-    Module,
-    Newtype,
-    Of,
-    Then,
-    Type,
-    Where,
-    Underscore,
-    DotDot,
-    Colon,
-    DoubleColon,
-    Equals,
-    Backslash,
-    Bar,
-    LeftArrow,
-    RightArrow,
-    At,
-    Tilde,
-    DoubleArrow,
-    StartLayout(usize),
-    Indent(usize),
-    Eof
-}
-
-fn is_symbolic(c : char) -> bool {
-    // TODO: Use Unicode properties. For now anything non-alphanumeric will do
-    c == '!' || c == '#' || c == '$' || c == '%' || c == '&' || c == '*' ||
-    c == '+' || c == '.' || c == '/' || c == '<' || c == '=' || c == '>' ||
-    c == '?' || c == '@' || c == '\\' || c== '^' || c == '|' || c == '-' ||
-    c == '~' || c == ':' || (!c.is_ascii() && !c.is_alphanumeric() && !c.is_whitespace())
-}
-
-fn is_identifier_char(c : char) -> bool {
-    c.is_alphanumeric() || c == '\'' || c == '_'
-}
-
-fn virtual_token(t : Token) -> Annotated<Token> {
-    Annotated { annotations: Vec::new(), location: None, value: t }
-}
+use super::{ParserState, helpers::error};
+use crate::{ast::{Identifier, qconid, qvarid, qconsym, qvarsym, conid, varid, consym, varsym}, location::Location, error::RugsError};
 
 impl<'a> super::ParserState<'a> {
-    pub (super) fn get_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
+    pub (super) fn get_next_token(&mut self) -> anyhow::Result<Token> {
         if let Some(tok) = self.pushed_back.pop_front() {
             return Ok(tok);
         }
@@ -95,43 +14,43 @@ impl<'a> super::ParserState<'a> {
         Ok(token)
     }
 
-    pub (super) fn peek_next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
+    pub (super) fn peek_next_token(&mut self) -> anyhow::Result<Token> {
         let token = self.get_next_token()?;
-        self.pushed_back.push_back(token.clone());
+        self.pushed_back.push_front(token.clone());
         Ok(token)
     }
 
     pub (super) fn push_token(&mut self, token : Token) {
-        self.pushed_back.push_front(Annotated { annotations: Vec::new(), location: None, value: token })
+        self.pushed_back.push_front(token)
     } 
 
-    fn check_layout_start(&mut self, tok: &Annotated<Token>) {
+    fn check_layout_start(&mut self, tok: &Token) {
         match tok.value {
-            Token::Let | Token::Where | Token::Do | Token::Of => { self.layout_start = true; }
+            TokenValue::Let | TokenValue::Where | TokenValue::Do | TokenValue::Of => { self.layout_start = true; }
             _ => ()
         }
     }
 
-    fn layout(&mut self, tok: Annotated<Token>) -> Result<Annotated<Token>, ParseError> {
+    fn layout(&mut self, tok: Token) -> anyhow::Result<Token> {
         match tok.value {
-            Token::StartLayout(n) => {
+            TokenValue::StartLayout(n) => {
                 let m = self.layout_stack.last().unwrap_or(&0);
                 if n > *m {
                     self.layout_stack.push(n);
                 } else {
-                    let token = virtual_token(Token::VirtualRightBrace);
+                    let token = Token::new(TokenValue::VirtualRightBrace);
                     self.queue.push_back(token);
                 }
-                return Ok(virtual_token(Token::VirtualLeftBrace));
+                return Ok(Token::new(TokenValue::VirtualLeftBrace));
             },
-            Token::Indent(n) => {
+            TokenValue::Indent(n) => {
                 let m = self.layout_stack.last().unwrap_or(&0);
                 if *m == n {
-                    return Ok(virtual_token(Token::VirtualSemiColon));
+                    return Ok(Token::new(TokenValue::VirtualSemicolon));
                 } else if n < *m {
                     while self.layout_stack.last().map_or(false,|m| n<*m ) {
                         self.layout_stack.pop();
-                        let token = virtual_token(Token::VirtualRightBrace);
+                        let token = Token::new(TokenValue::VirtualRightBrace);
                         self.queue.push_back(token);
                     }
                     return Ok(self.queue.pop_front().unwrap()); // YOLO
@@ -139,23 +58,23 @@ impl<'a> super::ParserState<'a> {
                     return self.get_next_token() // Recursing should be fine as tailcall
                 }
             },
-            Token::LeftBrace => {
+            TokenValue::LeftBrace => {
                 self.layout_stack.push(0);
             },
-            Token::RightBrace => {
+            TokenValue::RightBrace => {
                 let concrete = self.layout_stack.pop();
                 match concrete {
                     Some(0) => (),
                     _ => return self.lex_error("An explicit left brace must be matched with an explicit right brace")
                 }
             },
-            Token::Eof => {
+            TokenValue::Eof => {
                 self.queue.push_back(tok);
                 for n in &self.layout_stack {
                     if *n == 0 {
                         return self.lex_error("Unterminated explicit left brace");
                     }
-                    self.queue.push_back(virtual_token(Token::VirtualRightBrace));
+                    self.queue.push_front(Token::new(TokenValue::VirtualRightBrace));
                 }
                 self.layout_stack.clear();
                 return Ok(self.queue.pop_front().unwrap());
@@ -165,7 +84,7 @@ impl<'a> super::ParserState<'a> {
         Ok(tok)
     }
 
-    fn next_token(&mut self) -> Result<Annotated<Token>, ParseError> {
+    fn next_token(&mut self) -> anyhow::Result<Token> {
         if let Some(tok) = self.queue.pop_front() {
             return Ok(tok);
         }
@@ -182,23 +101,23 @@ impl<'a> super::ParserState<'a> {
                     self.next(); 
                     None 
                 },
-                '(' => Some(self.simple_token(Token::LeftParen)),
-                ')' => Some(self.simple_token(Token::RightParen)),
-                '[' => Some(self.simple_token(Token::LeftBracket)),
-                ']' => Some(self.simple_token(Token::RightBracket)),
-                '`' => Some(self.simple_token(Token::Backtick)),
-                ',' => Some(self.simple_token(Token::Comma)),
-                ';' => Some(self.simple_token(Token::Semicolon)),
+                '(' => Some(self.simple_token(TokenValue::LeftParen)),
+                ')' => Some(self.simple_token(TokenValue::RightParen)),
+                '[' => Some(self.simple_token(TokenValue::LeftBracket)),
+                ']' => Some(self.simple_token(TokenValue::RightBracket)),
+                '`' => Some(self.simple_token(TokenValue::Backtick)),
+                ',' => Some(self.simple_token(TokenValue::Comma)),
+                ';' => Some(self.simple_token(TokenValue::Semicolon)),
                 '{' => {
                     self.layout_start = false;
                     if self.check_prefix("{-") {
                         self.read_block_comment()?;
                         None
                     } else {
-                        Some(self.simple_token(Token::LeftBrace))
+                        Some(self.simple_token(TokenValue::LeftBrace))
                     }
                 },
-                '}' => Some(self.simple_token(Token::RightBrace)),
+                '}' => Some(self.simple_token(TokenValue::RightBrace)),
                 '"' => Some(self.get_string()?),
                 '\'' => Some(self.get_char()?),
                 _ if c.is_numeric() => Some(self.get_number()?),
@@ -218,32 +137,32 @@ impl<'a> super::ParserState<'a> {
                 if self.layout_start {
                     self.layout_start = false;
                     self.queue.push_back(tok);
-                    return Ok(self.token(Token::StartLayout(indent+1)));
+                    return Ok(self.token(TokenValue::StartLayout(indent+1)));
                 } else if self.indent.is_none() {
                     self.indent = Some(indent);
                     self.queue.push_back(tok);
-                    return Ok(self.token(Token::Indent(indent+1)));
+                    return Ok(self.token(TokenValue::Indent(indent+1)));
                 }
                 return Ok(tok);
             }
         }
-        let eof = self.simple_token(Token::Eof);
+        let eof = self.simple_token(TokenValue::Eof);
         if self.layout_start {
             self.layout_start = false;
             self.queue.push_back(eof);
-            Ok(self.token(Token::StartLayout(0)))
+            Ok(self.token(TokenValue::StartLayout(0)))
         } else {
             Ok(eof)
         }
     }
 
-    fn get_string(&mut self) -> Result<Annotated<Token>, ParseError> {
+    fn get_string(&mut self) -> anyhow::Result<Token> {
         let mut result = String::new();
         self.next();
         while let Some((p, c)) = self.next() {
             match c {
                 '"' => {
-                    return Ok(self.token(Token::String(result)));
+                    return Ok(self.token(TokenValue::String(result)));
                 },
                 '\\' => {
                     if self.peek()?.is_whitespace() {
@@ -266,7 +185,7 @@ impl<'a> super::ParserState<'a> {
         self.lex_error("unterminated string")
     }
 
-    fn get_char(&mut self) -> Result<Annotated<Token>, ParseError> {
+    fn get_char(&mut self) -> anyhow::Result<Token> {
         self.next();
         if let Some((_, c)) = self.next() {
             let ch = match c {
@@ -277,13 +196,13 @@ impl<'a> super::ParserState<'a> {
             };
             if self.check_prefix("'") {
                 self.advance(1);
-                return Ok(self.token(Token::Char(ch)));
+                return Ok(self.token(TokenValue::Char(ch)));
             }
         }
         self.lex_error("missing ' at end of char literal")
     }
 
-    fn read_escape(&mut self) -> Result<char, ParseError> {
+    fn read_escape(&mut self) -> anyhow::Result<char> {
         let asciis = ["NUL", "SOH",  "STX", "ETX", "EOT",
         "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF" ,"CR" ,"SO" ,"SI" ,"DLE",
         "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN",
@@ -333,7 +252,7 @@ impl<'a> super::ParserState<'a> {
         Ok(ch)
     }
 
-    fn get_codepoint(&mut self, pred : impl Fn (&char) -> bool, radix : u32) -> Result<char, ParseError> {
+    fn get_codepoint(&mut self, pred : impl Fn (&char) -> bool, radix : u32) -> anyhow::Result<char> {
         let start = self.pos;
         let stop = self.snarf(pred)?;
         let code = u32::from_str_radix(&self.src[start..stop], radix)?;
@@ -344,20 +263,20 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn get_number(&mut self) -> Result<Annotated<Token>, ParseError> {
+    fn get_number(&mut self) -> anyhow::Result<Token> {
         if self.check_prefix("0x") || self.check_prefix("0X") {
             self.advance(2);
             let start = self.pos;
             let stop = self.snarf(char::is_ascii_hexdigit)?;
             let bigint = BigInt::from_str_radix(&self.src[start..stop], 16)?;
-            return Ok(self.token(Token::Integer(bigint)));
+            return Ok(self.token(TokenValue::Integer(bigint)));
         }
         if self.check_prefix("0o") || self.check_prefix("0O") {
             self.advance(2);
             let start = self.pos;
             let stop = self.snarf(|c| *c >= '0' && *c <= '7')?;
             let bigint = BigInt::from_str_radix(&self.src[start..stop], 8)?;
-            return Ok(self.token(Token::Integer(bigint)));
+            return Ok(self.token(TokenValue::Integer(bigint)));
         }
         let mut stop = self.snarf(char::is_ascii_digit)?;
         let mut next = self.peek()?;
@@ -375,13 +294,13 @@ impl<'a> super::ParserState<'a> {
                     }
                     stop = self.snarf(char::is_ascii_digit)?;
             }
-            return Ok(self.token(Token::Float(self.src[self.token_start..stop].parse()?)));
+            return Ok(self.token(TokenValue::Float(self.src[self.token_start..stop].parse()?)));
         }
         let bigint = BigInt::from_str_radix(&self.src[self.token_start..stop], 10)?;
-        Ok(self.token(Token::Integer(bigint)))
+        Ok(self.token(TokenValue::Integer(bigint)))
     }
 
-    fn get_modcon(&mut self) -> Result<Annotated<Token>, ParseError> {
+    fn get_modcon(&mut self) -> anyhow::Result<Token> {
         let mut qualified = false;
         let mut not_modid = false;
         let mut last_dot = self.pos;
@@ -406,7 +325,7 @@ impl<'a> super::ParserState<'a> {
                     c if c.is_lowercase() || c == '_' => {
                         let t = self.get_varid()?;
                         match t.value {
-                            Token::VarId(s) => Ok(self.token(Token::QVarId(module, s))),
+                            TokenValue::VarId(s) => Ok(self.token(TokenValue::QVarId(module, s))),
                             _ => self.lex_error("Invalid qualified name")
                         }
                     },
@@ -414,8 +333,8 @@ impl<'a> super::ParserState<'a> {
                         let t = self.get_symbol()?;
                         if let Some(tok) = t {
                             match tok.value {
-                                Token::VarSym(s) => Ok(self.token(Token::QVarSym(module, s))),
-                                Token::ConSym(s) => Ok(self.token(Token::QConSym(module, s))),
+                                TokenValue::VarSym(s) => Ok(self.token(TokenValue::QVarSym(module, s))),
+                                TokenValue::ConSym(s) => Ok(self.token(TokenValue::QConSym(module, s))),
                                 _ => self.lex_error("Invalid qualified name")
                             }
                         } else {
@@ -427,46 +346,46 @@ impl<'a> super::ParserState<'a> {
                     }
                 }
             } else {
-                Ok(self.token(Token::QConId(module, self.src[last_dot+1..self.pos].to_string())))
+                Ok(self.token(TokenValue::QConId(module, self.src[last_dot+1..self.pos].to_string())))
             }
         } else {
-            Ok(self.token(Token::ConId(self.src[self.token_start..self.pos].to_string())))
+            Ok(self.token(TokenValue::ConId(self.src[self.token_start..self.pos].to_string())))
         }
     }
 
-    fn get_varid(&mut self) -> Result<Annotated<Token>, ParseError> {
+    fn get_varid(&mut self) -> anyhow::Result<Token> {
         let start = self.pos;
         let end = self.snarf(|c| is_identifier_char(*c))?;
         let id = &self.src[start..end];
         match id {
-            "case" => Ok(self.token(Token::Case)),
-            "class" => Ok(self.token(Token::Class)),
-            "data" => Ok(self.token(Token::Data)),
-            "default" => Ok(self.token(Token::Default)),
-            "deriving" => Ok(self.token(Token::Deriving)),
-            "do" => Ok(self.token(Token::Do)),
-            "else" => Ok(self.token(Token::Else)),
-            "foreign" => Ok(self.token(Token::Foreign)),
-            "if" => Ok(self.token(Token::If)),
-            "import" => Ok(self.token(Token::Import)),
-            "in" => Ok(self.token(Token::In)),
-            "infix" => Ok(self.token(Token::Infix)),
-            "infixl" => Ok(self.token(Token::Infixl)),
-            "infixr" => Ok(self.token(Token::Infixr)),
-            "instance" => Ok(self.token(Token::Instance)),
-            "let" => Ok(self.token(Token::Let)),
-            "module" => Ok(self.token(Token::Module)),
-            "newtype" => Ok(self.token(Token::Newtype)),
-            "of" => Ok(self.token(Token::Of)),
-            "then" => Ok(self.token(Token::Then)),
-            "type" => Ok(self.token(Token::Type)),
-            "where" => Ok(self.token(Token::Where)),
-            "_" => Ok(self.token(Token::Underscore)),
-            _ => Ok(self.token(Token::VarId(id.to_string())))
+            "case" => Ok(self.token(TokenValue::Case)),
+            "class" => Ok(self.token(TokenValue::Class)),
+            "data" => Ok(self.token(TokenValue::Data)),
+            "default" => Ok(self.token(TokenValue::Default)),
+            "deriving" => Ok(self.token(TokenValue::Deriving)),
+            "do" => Ok(self.token(TokenValue::Do)),
+            "else" => Ok(self.token(TokenValue::Else)),
+            "foreign" => Ok(self.token(TokenValue::Foreign)),
+            "if" => Ok(self.token(TokenValue::If)),
+            "import" => Ok(self.token(TokenValue::Import)),
+            "in" => Ok(self.token(TokenValue::In)),
+            "infix" => Ok(self.token(TokenValue::Infix)),
+            "infixl" => Ok(self.token(TokenValue::Infixl)),
+            "infixr" => Ok(self.token(TokenValue::Infixr)),
+            "instance" => Ok(self.token(TokenValue::Instance)),
+            "let" => Ok(self.token(TokenValue::Let)),
+            "module" => Ok(self.token(TokenValue::Module)),
+            "newtype" => Ok(self.token(TokenValue::Newtype)),
+            "of" => Ok(self.token(TokenValue::Of)),
+            "then" => Ok(self.token(TokenValue::Then)),
+            "type" => Ok(self.token(TokenValue::Type)),
+            "where" => Ok(self.token(TokenValue::Where)),
+            "_" => Ok(self.token(TokenValue::Underscore)),
+            _ => Ok(self.token(TokenValue::VarId(id.to_string())))
         }
     }
 
-    fn get_symbol(&mut self) -> Result<Option<Annotated<Token>>, ParseError> {
+    fn get_symbol(&mut self) -> anyhow::Result<Option<Token>> {
         let start = self.pos;
         let end = self.snarf(|c| is_symbolic(*c))?;
         let id = &self.src[start..end];
@@ -480,28 +399,28 @@ impl<'a> super::ParserState<'a> {
                 }
                 Ok(None)
             }
-            ".." => Ok(Some(self.token(Token::DotDot))),
-            ":" => Ok(Some(self.token(Token::Colon))),
-            "::" => Ok(Some(self.token(Token::DoubleColon))),
-            "=" => Ok(Some(self.token(Token::Equals))),
-            "\\" => Ok(Some(self.token(Token::Backslash))),
-            "|" => Ok(Some(self.token(Token::Bar))),
-            "<-" => Ok(Some(self.token(Token::LeftArrow))),
-            "->" => Ok(Some(self.token(Token::RightArrow))),
-            "@" => Ok(Some(self.token(Token::At))),
-            "~" => Ok(Some(self.token(Token::Tilde))),
-            "=>" => Ok(Some(self.token(Token::DoubleArrow))),
+            ".." => Ok(Some(self.token(TokenValue::DotDot))),
+            ":" => Ok(Some(self.token(TokenValue::Colon))),
+            "::" => Ok(Some(self.token(TokenValue::DoubleColon))),
+            "=" => Ok(Some(self.token(TokenValue::Equals))),
+            "\\" => Ok(Some(self.token(TokenValue::Backslash))),
+            "|" => Ok(Some(self.token(TokenValue::Bar))),
+            "<-" => Ok(Some(self.token(TokenValue::LeftArrow))),
+            "->" => Ok(Some(self.token(TokenValue::RightArrow))),
+            "@" => Ok(Some(self.token(TokenValue::At))),
+            "~" => Ok(Some(self.token(TokenValue::Tilde))),
+            "=>" => Ok(Some(self.token(TokenValue::DoubleArrow))),
             _ => {
                 if id.starts_with(':') {
-                    Ok(Some(self.token(Token::ConSym(id.to_string()))))
+                    Ok(Some(self.token(TokenValue::ConSym(id.to_string()))))
                 } else {
-                    Ok(Some(self.token(Token::VarSym(id.to_string()))))
+                    Ok(Some(self.token(TokenValue::VarSym(id.to_string()))))
                 }
             }
         }
     }
 
-    fn read_block_comment(&mut self) -> Result<(), ParseError> {
+    fn read_block_comment(&mut self) -> anyhow::Result<()> {
         let start = self.pos;
         // TODO: Collect pragmas and doc comments.
         if self.check_prefix("{-#") {
@@ -524,7 +443,7 @@ impl<'a> super::ParserState<'a> {
         Ok(())
     }
 
-    fn snarf(&mut self, pred : impl Fn (&char) -> bool) -> Result<usize, ParseError> {
+    fn snarf(&mut self, pred : impl Fn (&char) -> bool) -> anyhow::Result<usize> {
         let next = self.chars.peek();
         match next {
             None => return self.lex_error("Unexpected end of input"),
@@ -551,7 +470,7 @@ impl<'a> super::ParserState<'a> {
         self.src[self.pos..].starts_with(what)
     }
 
-    fn peek(&mut self) -> Result<char, ParseError> {
+    fn peek(&mut self) -> anyhow::Result<char> {
         if let Some((_, ch)) = self.chars.peek() {
             Ok(*ch)
         } else {
@@ -567,16 +486,167 @@ impl<'a> super::ParserState<'a> {
         item
     }
 
-    fn simple_token(&mut self, token : Token) -> Annotated<Token> {
+    fn simple_token(&mut self, token : TokenValue) -> Token {
         self.next();
         self.token(token)
     }
 
-    fn token(&mut self, token : Token) -> Annotated<Token> {
-        Annotated { annotations: Vec::new(), location:  Some((self.token_start, self.pos)), value: token }
+    fn token(&mut self, token : TokenValue) -> Token {
+        Token { value: token, location: self.location_current_token() }
     }
 
-    fn lex_error<T>(&self, msg : &str) -> Result<T, ParseError> {
-        Err(ParseError { msg: msg.to_string(), loc: Some((self.token_start, self.pos)) })
+    fn lex_error<T>(&self, msg : &str) -> anyhow::Result<T> {
+        Err(RugsError::Parse { msg: msg.to_string(), loc: self.location_current_token() }.into())
+    }
+
+    fn location_current_token(&self) -> Location {
+        // TODO: give InContext if applicable
+        Location::Offset { start: self.token_start, end: self.pos }
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenValue {
+    VarId(String),
+    ConId(String),
+    VarSym(String),
+    ConSym(String),
+    QVarId(String, String),
+    QConId(String, String),
+    QVarSym(String, String),
+    QConSym(String, String),
+    Integer(BigInt),
+    Float(f64),
+    Char(char),
+    String(String),
+    LeftParen,
+    RightParen,
+    Comma,
+    Semicolon,
+    VirtualSemicolon,
+    LeftBracket,
+    RightBracket,
+    Backtick,
+    LeftBrace,
+    RightBrace,
+    VirtualLeftBrace,
+    VirtualRightBrace,
+    Case,
+    Class,
+    Data,
+    Default,
+    Deriving,
+    Do,
+    Else,
+    Foreign,
+    If,
+    Import,
+    In,
+    Infix,
+    Infixl,
+    Infixr,
+    Instance,
+    Let,
+    Module,
+    Newtype,
+    Of,
+    Then,
+    Type,
+    Where,
+    Underscore,
+    DotDot,
+    Colon,
+    DoubleColon,
+    Equals,
+    Backslash,
+    Bar,
+    LeftArrow,
+    RightArrow,
+    At,
+    Tilde,
+    DoubleArrow,
+    StartLayout(usize),
+    Indent(usize),
+    Eof
+}
+
+#[derive(Debug, Clone)]
+pub struct Token {
+    pub value : TokenValue,
+    pub location : Location
+}
+
+impl Token {
+    pub (super) fn new(value : TokenValue) -> Token {
+        Token { value, location: Location::Unlocated }
+    }
+
+    pub (super) fn varsym(op : &str) -> Token {
+        Token::new(TokenValue::VarSym(op.to_string()))
+    }
+    
+    pub (super) fn varid(op : &str) -> Token {
+        Token::new(TokenValue::VarId(op.to_string()))
+    }
+}
+
+impl Into<Token> for TokenValue {
+    fn into(self) -> Token {
+        Token::new(self)
+    }
+}
+
+impl PartialEq<Token> for Token {
+    fn eq(&self, other: &Token) -> bool {
+        self.value == other.value
+    }
+}
+
+impl PartialEq<TokenValue> for Token {
+    fn eq(&self, other: &TokenValue) -> bool {
+        self.value == *other
+    }
+}
+
+fn is_symbolic(c : char) -> bool {
+    // TODO: Use Unicode properties. For now anything non-alphanumeric will do
+    c == '!' || c == '#' || c == '$' || c == '%' || c == '&' || c == '*' ||
+    c == '+' || c == '.' || c == '/' || c == '<' || c == '=' || c == '>' ||
+    c == '?' || c == '@' || c == '\\' || c== '^' || c == '|' || c == '-' ||
+    c == '~' || c == ':' || (!c.is_ascii() && !c.is_alphanumeric() && !c.is_whitespace())
+}
+
+fn is_identifier_char(c : char) -> bool {
+    c.is_alphanumeric() || c == '\'' || c == '_'
+}
+
+impl TryFrom<Token> for Identifier {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Token) -> Result<Self, Self::Error> {
+        match Self::try_from(value.value) {
+            Ok(x) => Ok(x),
+            Err(_) => error("Token can't be converted to identifier", value.location)
+        }
+    }
+}
+
+
+impl TryFrom<TokenValue> for Identifier {
+    type Error = anyhow::Error;
+
+    fn try_from(value: TokenValue) -> Result<Self, Self::Error> {
+        match value {
+            TokenValue::QConId(module, con) => Ok(qconid(&module, &con)),
+            TokenValue::QVarId(module, var) => Ok(qvarid(&module, &var)),
+            TokenValue::QConSym(module, sym) => Ok(qconsym(&module, &sym)),
+            TokenValue::QVarSym(module, sym) => Ok(qvarsym(&module, &sym)),
+            TokenValue::ConId(con) => Ok(conid(&con)),
+            TokenValue::VarId(var) => Ok(varid(&var)),
+            TokenValue::ConSym(con) =>  Ok(consym(&con)),
+            TokenValue::VarSym(var) =>  Ok(varsym(&var)),
+            _ => error("Token can't be converted to identifier", Location::Unlocated)
+        }
     }
 }

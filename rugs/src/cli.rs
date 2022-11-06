@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 
 use clap::Parser;
 
@@ -10,7 +9,7 @@ pub struct Args {
     pub dump_tokens : bool,
 
     /// Input files
-    pub file_name : Vec<String>,
+    pub file_names : Vec<String>,
 
     /// Load from stdin
     #[arg(long)]

@@ -95,7 +95,10 @@ impl<'a> ParserState<'a> {
                 Ok(self.if_expression(predicate, then_exp, else_exp))
             },
             TokenValue::Case => {
-                unimplemented!()
+                let exp = self.parse_expression()?;
+                self.expect(TokenValue::Of)?;
+                let alts = self.parse_declarations(ParserState::parse_case_alt)?;
+                Ok(self.case_expression(exp, alts))
             },
             TokenValue::Do => {
                 unimplemented!()
@@ -200,6 +203,10 @@ impl<'a> ParserState<'a> {
     }
 
     fn parse_bracket_exp(&mut self) -> anyhow::Result<Expression> {
+        unimplemented!()
+    }
+
+    fn parse_case_alt(&mut self, is_virtual : bool) -> anyhow::Result<CaseAlt> {
         unimplemented!()
     }
 }

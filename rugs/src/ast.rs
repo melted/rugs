@@ -259,10 +259,9 @@ pub enum ExpressionValue {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CaseAlt {
-    matcher : Pattern,
-    guards : Vec<Expression>,
-    body : Expression
+pub enum CaseAlt {
+    Simple(Pattern, Expression),
+    Guarded(Pattern, Vec<(Vec<Guard>, Expression)>)
 }
 
 #[derive(Debug, Clone)]
@@ -326,6 +325,10 @@ pub trait AstMaker {
 
     fn let_expression(&mut self, decls : Vec<Declaration>, exp : Expression) -> Expression {
         self.expr(ExpressionValue::Let(decls, exp))
+    }
+
+    fn case_expression(&mut self, scrutinee:Expression, alts:Vec<CaseAlt>) -> Expression {
+        self.expr(ExpressionValue::Case(scrutinee, alts))
     }
 
     fn tuple(&mut self, fields : Vec<Expression>) -> Expression {

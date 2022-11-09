@@ -312,11 +312,24 @@ pub enum PatternValue {
 
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Identifier {
-    pub module : Option<String>,
-    pub constructor : bool,
-    pub operator : bool,
-    pub name : String
+pub enum Identifier {
+    Var { 
+        module: Option<String>,
+        name: String
+    }, 
+    Con { 
+        module: Option<String>,
+        name: String
+    },
+    Module(String),
+    Sym { 
+        module: Option<String>,
+        name: String
+    }, 
+    ConSym { 
+        module: Option<String>,
+        name: String
+    },
 }
 
 pub trait AstMaker {
@@ -388,38 +401,38 @@ pub trait AstMaker {
     }
 }
 
-
 pub fn varid(name : &str) -> Identifier {
-    Identifier { module: None, constructor: false, operator: false, name: name.to_string() }
+    Identifier::Var { module: None, name: name.to_string() }
 }
 
 pub fn conid(name : &str) -> Identifier {
-    Identifier { module: None, constructor: true, operator: false, name: name.to_string() }
+    Identifier::Con { module: None,  name: name.to_string() }
 }
 
 pub fn varsym(name : &str) -> Identifier {
-    Identifier { module: None, constructor: false, operator: true, name: name.to_string() }
+    Identifier::Sym { module: None, name: name.to_string() }
 }
 
 pub fn consym(name : &str) -> Identifier {
-    Identifier { module: None, constructor: true, operator: true, name: name.to_string() }
+    Identifier::ConSym { module: None, name: name.to_string() }
 }
 
 pub fn qvarid(module :&str, name : &str) -> Identifier {
-    Identifier { module: Some(module.to_string()), constructor: false, operator: false, name: name.to_string() }
+    Identifier::Var { module: Some(module.to_string()), name: name.to_string() }
 }
-
 
 pub fn qconid(module :&str, name : &str) -> Identifier {
-    Identifier { module: Some(module.to_string()), constructor: true, operator: false, name: name.to_string() }
+    Identifier::Con { module: Some(module.to_string()), name: name.to_string() }
 }
-
 
 pub fn qvarsym(module :&str, name : &str) -> Identifier {
-    Identifier { module: Some(module.to_string()), constructor: false, operator: true, name: name.to_string() }
+    Identifier::Sym { module: Some(module.to_string()), name: name.to_string() }
 }
 
-
 pub fn qconsym(module :&str, name : &str) -> Identifier {
-    Identifier { module: Some(module.to_string()), constructor: true, operator: true, name: name.to_string() }
+    Identifier::ConSym { module: Some(module.to_string()), name: name.to_string() }
+}
+
+pub fn module(module: &str) -> Identifier {
+    Identifier::Module(module.to_string())
 }

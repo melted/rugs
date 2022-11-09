@@ -73,7 +73,7 @@ impl<'a> ParserState<'a> {
                 Ok(self.lambda(args, exp))
             },
             TokenValue::Let => {
-                let decls = self.parse_declarations(
+                let decls = self.parse_braced_list(
                     |this, is_virtual| {
                         let res = this.parse_declaration()?;
                         if is_virtual && this.is_next(TokenValue::In)? {
@@ -97,7 +97,7 @@ impl<'a> ParserState<'a> {
             TokenValue::Case => {
                 let exp = self.parse_expression()?;
                 self.expect(TokenValue::Of)?;
-                let alts = self.parse_declarations(ParserState::parse_case_alt)?;
+                let alts = self.parse_braced_list(ParserState::parse_case_alt)?;
                 Ok(self.case_expression(exp, alts))
             },
             TokenValue::Do => {

@@ -2,6 +2,7 @@ mod declaration;
 mod expression;
 mod helpers;
 mod lexing;
+mod module;
 mod pattern;
 mod tests;
 mod types;

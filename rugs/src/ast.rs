@@ -7,15 +7,15 @@ use num_bigint::BigInt;
 
 use crate::location::Location;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Module {
     pub name : String,
     pub file : Option<String>,
     pub trivia : Vec<Annotation>,
     pub annotations : HashMap<NodeId, Annotation>,
     pub locations : HashMap<NodeId, Location>,
-    pub imports : Vec<Import>,
-    pub exports : Option<Vec<Identifier>>,
+    pub imports : Vec<ImportDecl>,
+    pub exports : Option<Vec<Export>>,
     pub declarations : Vec<TopDeclaration>
 }
 
@@ -34,14 +34,30 @@ impl Module {
     }
 }
 
-#[derive(Debug)]
-pub struct Import {
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportDecl {
     pub id : NodeId,
-    pub name : String,
+    pub name : Identifier,
     pub qualified : bool,
-    pub alias : Option<String>,
-    pub specific : Option<Vec<String>>,
-    pub hidden : Vec<String>
+    pub alias : Option<Identifier>,
+    pub specific : Option<Vec<Import>>,
+    pub hidden : Option<Vec<Import>>
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Import {
+    Var(Identifier),
+    Type(Option<Vec<Identifier>>),
+    Class(Option<Vec<Identifier>>)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Export {
+    Var(Identifier),
+    Type(Option<Vec<Identifier>>),
+    Class(Option<Vec<Identifier>>),
+    Module(Identifier)
 }
 
 #[derive(Debug, Clone, PartialEq)]

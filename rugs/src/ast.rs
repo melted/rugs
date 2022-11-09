@@ -3,7 +3,6 @@
 //! of the parsing state.
 use std::collections::HashMap;
 
-use clap::Id;
 use num_bigint::BigInt;
 
 use crate::location::Location;
@@ -74,8 +73,7 @@ pub enum TypeCon {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeDecl {
     id : NodeId,
-    tycon : Identifier,
-    tyvars : Vec<Identifier>,
+    alias : Type,
     the_type : Type
 }
 
@@ -176,19 +174,17 @@ pub enum Association {
     NonAssociative
 }
 
-
-
 #[derive(Debug, Clone, PartialEq)]
-pub enum Guard {
+pub enum SeqSyntax {
     Pattern(Pattern, Expression),
     Decls(Vec<Declaration>),
-    Boolean(Expression)
+    Expr(Expression)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Binding {
     Plain(Expression, Vec<Declaration>),
-    Guarded(Expression, Vec<(Vec<Guard>, Expression)>, Vec<Declaration>)
+    Guarded(Expression, Vec<GuardedExpression>, Vec<Declaration>)
 }
 
 
@@ -253,15 +249,23 @@ pub enum ExpressionValue {
     // until that happens we need to keep track of parenthesized expressions.
     Wrapped(Expression),
     List(Vec<Expression>),
+    Comprehension(Expression, Vec<SeqSyntax>),
+    Do(Vec<SeqSyntax>),
     Tuple(Vec<Expression>),
     LabeledCon(Identifier, Vec<(Identifier, Expression)>),
     LabeledUpdate(Expression, Vec<(Identifier, Expression)>)
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct GuardedExpression {
+    guards : Vec<SeqSyntax>,
+    body : Expression
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum CaseAlt {
     Simple(Pattern, Expression),
-    Guarded(Pattern, Vec<(Vec<Guard>, Expression)>)
+    Guarded(Pattern, GuardedExpression)
 }
 
 #[derive(Debug, Clone)]

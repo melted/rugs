@@ -175,11 +175,6 @@ impl<'a> ParserState<'a> {
                 con.push(')');
                 return Ok(self.var(conid(&con)))
             },
-            TokenValue::RightArrow => {
-                self.get_next_token()?;
-                self.expect(TokenValue::RightParen)?;
-                return Ok(self.var(conid("(->)")))
-            }
             _ => self.parse_expression()?
         };
         let tok = self.get_next_token()?;
@@ -187,7 +182,8 @@ impl<'a> ParserState<'a> {
             TokenValue::RightParen => Ok(self.wrapped(exp)),
             TokenValue::Comma => {
                 let mut tuple = vec![exp];
-                while let e = self.parse_expression()? {
+                loop {
+                    let e = self.parse_expression()?;
                     tuple.push(e);
                     let tok = self.get_next_token()?;
                     match tok.value {

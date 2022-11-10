@@ -1,4 +1,4 @@
-use super::{ParserState, lexing::TokenValue};
+use super::{ParserState, lexing::{TokenValue, Token}};
 use crate::{ast::*};
 use super::helpers::error;
 
@@ -39,7 +39,64 @@ impl<'a> ParserState<'a> {
     }
 
     fn parse_export(&mut self) -> anyhow::Result<Export> {
-        unimplemented!()
+        let tok = self.get_next_token()?;
+        match tok.value {
+            TokenValue::QVarId(_, _) | TokenValue::VarId(_) 
+                => Ok(Export::Var(Identifier::try_from(tok)?)),
+            TokenValue::QConId(_, _) | TokenValue::ConId(_) => {
+                if self.is_next(TokenValue::LeftParen)? {
+                    let tok = self.peek_next_token()?;
+                    match tok.value {
+                        TokenValue::DotDot => {
+                            self.get_next_token()?;
+                            self.expect(TokenValue::RightParen)?;
+                            Ok(Export::Type(ExposedSpec::All))
+                        },
+                        _ => {
+                            let mut is_tycls : Option<bool> = None;
+                            self.push_token(TokenValue::LeftParen.into());
+                            let cons = self.parse_paren_list(|this| {
+                                let tok = self.get_next_token()?;
+                                if let Some(b) = is_tycls {
+                                    match tok.value {
+                                        TokenValue::QConId(_,_) | TokenValue::ConId(_) if !b
+                                            => Ok(Identifier::try_from(tok)?),
+                                        TokenValue::QVarId(_, _) | TokenValue::VarId(_) if b
+                                            => Ok(Identifier::try_from(tok)?),
+                                        _ => error("Invalid export", tok.location)
+                                    }
+                                } else {
+                                    match tok.value {
+                                        TokenValue::QConId(_,_) | TokenValue::ConId(_) => {
+                                                is_tycls = Some(false);
+                                                Ok(Identifier::try_from(tok)?)
+                                            },
+                                        TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
+                                            is_tycls = Some(true);
+                                            Ok(Identifier::try_from(tok)?)
+                                        },
+                                        _ => error("Invalid export", tok.location)
+                                    }
+                                }
+                            })?;
+                            match is_tycls {
+                                Some(true) => Ok(Export::Class(ExposedSpec::List(cons))),
+                                Some(false) => Ok(Export::Type(ExposedSpec::List(cons))),
+                                None => Ok(Export::Type(ExposedSpec::List(cons)))
+                            }
+                        }
+                    }
+                } else {
+                    Ok(Export::Type(ExposedSpec::None))
+                }
+            },
+            TokenValue::Module => {
+                let tok = self.get_next_token()?;
+                let modid = Identifier::try_from(tok.value)?;
+                Ok(Export::Module(modid))
+            },
+            _ => error("Invalid export", tok.location)
+        }
     }
 
     fn parse_import_decl(&mut self) -> anyhow::Result<Import> {

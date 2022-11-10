@@ -44,19 +44,25 @@ pub struct ImportDecl {
     pub hidden : Option<Vec<Import>>
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExposedSpec {
+    None,
+    All,
+    List(Vec<Identifier>)
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Import {
     Var(Identifier),
-    Type(Option<Vec<Identifier>>),
-    Class(Option<Vec<Identifier>>)
+    Type(ExposedSpec),
+    Class(ExposedSpec)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Export {
     Var(Identifier),
-    Type(Option<Vec<Identifier>>),
-    Class(Option<Vec<Identifier>>),
+    Type(ExposedSpec),
+    Class(ExposedSpec),
     Module(Identifier)
 }
 

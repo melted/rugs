@@ -589,6 +589,55 @@ impl Token {
     pub (super) fn varid(op : &str) -> Token {
         Token::new(TokenValue::VarId(op.to_string()))
     }
+
+    pub (super) fn same_token_type(&self, other : &Token) -> bool {
+        self.value.same_token_type(&other.value)
+    }
+
+    pub (super) fn default_conid() -> Token {
+        Token::new(TokenValue::ConId(String::new()))
+    }
+
+    pub (super) fn default_char() -> Token {
+        Token::new(TokenValue::Char(' '))
+    }
+
+    pub (super) fn default_float() -> Token {
+        Token::new(TokenValue::Float(0.0))
+    }
+
+    pub (super) fn default_integer() -> Token {
+        Token::new(TokenValue::Integer(BigInt::default()))
+    }
+
+    pub (super) fn default_string() -> Token {
+        Token::new(TokenValue::String(String::new()))
+    }
+
+    pub (super) fn default_varid() -> Token {
+        Token::new(TokenValue::VarId(String::new()))
+    }
+}
+
+impl TokenValue {
+    pub (super) fn same_token_type(&self, other : &TokenValue) -> bool {
+        match (self, other) {
+            (TokenValue::Char(_), TokenValue::Char(_)) => true,
+            (TokenValue::ConId(_), TokenValue::ConId(_)) => true,
+            (TokenValue::ConSym(_), TokenValue::ConSym(_)) => true,
+            (TokenValue::Float(_), TokenValue::Float(_)) => true,
+            (TokenValue::Integer(_), TokenValue::Integer(_)) => true,
+            (TokenValue::String(_), TokenValue::String(_)) => true,
+            (TokenValue::QConId(_,_), TokenValue::QConId(_,_)) => true,
+            (TokenValue::QConSym(_,_), TokenValue::QConSym(_,_)) => true,
+            (TokenValue::QVarId(_,_), TokenValue::QVarId(_,_)) => true,
+            (TokenValue::QVarSym(_,_), TokenValue::QVarSym(_,_)) => true,
+            (TokenValue::VarId(_), TokenValue::VarId(_)) => true,
+            (TokenValue::VarSym(_), TokenValue::VarSym(_)) => true,
+            (x, y) if x == y => true,
+            _ => false
+        }
+    }
 }
 
 impl Into<Token> for TokenValue {

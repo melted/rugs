@@ -1,4 +1,4 @@
-use crate::{error::RugsError, location::Location};
+use crate::{error::RugsError, location::Location, ast::Identifier};
 
 use super::{lexing::{Token, TokenValue}, ParserState};
 
@@ -23,10 +23,42 @@ impl<'a> ParserState<'a> {
         }
     }
 
+    pub (super) fn peek_next(&mut self, t : TokenValue) -> anyhow::Result<bool> {
+        let next = self.peek_next_token()?;
+        if t == next.value {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     pub (super) fn optional_token(&mut self, t : TokenValue) -> anyhow::Result<()> {
         self.is_next(t)?;
         Ok(())
     }
+
+    pub (super) fn expect_token_value(&mut self, t : &mut Token) -> anyhow::Result<()> {
+        let success = self.optional_token_value(t)?;
+        if !success {
+            let tok = self.get_next_token()?;
+            error("bad token type", tok.location)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub (super) fn optional_token_value(&mut self, t : &mut Token) -> anyhow::Result<bool> {
+        let next = self.peek_next_token()?;
+        if next.same_token_type(t) {
+            let tok = self.get_next_token()?;
+            t.value = tok.value;
+            t.location = tok.location;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
 
     pub (super) fn optional_semicolon(&mut self) -> anyhow::Result<()> {
         self.optional_token(TokenValue::Semicolon)?;
@@ -79,6 +111,81 @@ impl<'a> ParserState<'a> {
             }
         }
         Ok(output)
+    }
+
+    pub (super) fn parse_qvar(&mut self) -> anyhow::Result<Identifier> {
+        let tok = self.get_next_token()?;
+        match tok.value {
+            TokenValue::QVarId(_, _) | TokenValue::VarId(_) => Ok(Identifier::try_from(tok)?),
+            TokenValue::LeftParen => {
+                let tok = self.get_next_token()?;
+                match tok.value {
+                    TokenValue::QVarSym(_, _) | TokenValue::VarSym(_) => {
+                        self.expect(TokenValue::RightParen)?;
+                        Ok(Identifier::try_from(tok)?)
+                    },
+                    _ => return error("expected varid", tok.location)
+                }
+            },
+            _ => error("Expected qvar", tok.location)
+        }
+    }
+
+    pub (super) fn parse_qcon(&mut self) -> anyhow::Result<Identifier> {
+        let tok = self.get_next_token()?;
+        match tok.value {
+            TokenValue::QConId(_, _) | TokenValue::ConId(_) => Ok(Identifier::try_from(tok)?),
+            TokenValue::LeftParen => {
+                let tok = self.get_next_token()?;
+                match tok.value {
+                    TokenValue::QConSym(_, _) | TokenValue::ConSym(_) => {
+                        self.expect(TokenValue::RightParen)?;
+                        Ok(Identifier::try_from(tok)?)
+                    },
+                    _ => return error("expected varid", tok.location)
+                }
+            },
+            _ => error("Expected qvar", tok.location)
+        }
+    }
+
+    pub (super) fn parse_qvarcon(&mut self) -> anyhow::Result<Identifier> {
+        let tok = self.get_next_token()?;
+        match tok.value {
+            TokenValue::QVarId(_, _) | TokenValue::VarId(_) 
+            | TokenValue::QConId(_, _) | TokenValue::ConId(_)
+                => Ok(Identifier::try_from(tok)?),
+            TokenValue::LeftParen => {
+                let tok = self.get_next_token()?;
+                match tok.value {
+                    TokenValue::QVarSym(_, _) | TokenValue::VarSym(_)
+                    | TokenValue::QConSym(_, _) | TokenValue::ConSym(_) => {
+                        self.expect(TokenValue::RightParen)?;
+                        Ok(Identifier::try_from(tok)?)
+                    },
+                    _ => return error("expected varid", tok.location)
+                }
+            },
+            _ => error("Expected qvar", tok.location)
+        }
+    }
+
+    pub (super) fn parse_qvarsym(&mut self) -> anyhow::Result<Identifier> {
+        let tok = self.get_next_token()?;
+        match tok.value {
+            TokenValue::QVarSym(_, _) | TokenValue::VarSym(_) => Ok(Identifier::try_from(tok)?),
+            TokenValue::Backtick => {
+                let tok = self.get_next_token()?;
+                match tok.value {
+                    TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
+                        self.expect(TokenValue::Backtick)?;
+                        Ok(Identifier::try_from(tok)?)
+                    },
+                    _ => return error("expected varid", tok.location)
+                }
+            },
+            _ => error("Expected qvar", tok.location)
+        }
     }
 }
 

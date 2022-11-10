@@ -1,3 +1,4 @@
+use super::declaration::DeclKind;
 use super::helpers::error;
 use super::{ParserState};
 use super::lexing::{Token, TokenValue};
@@ -75,7 +76,7 @@ impl<'a> ParserState<'a> {
             TokenValue::Let => {
                 let decls = self.parse_braced_list(
                     |this, is_virtual| {
-                        let res = this.parse_declaration()?;
+                        let res = this.parse_declaration(DeclKind::Normal)?;
                         if is_virtual && this.is_next(TokenValue::In)? {
                             this.push_token(TokenValue::VirtualRightBrace.into());
                         }

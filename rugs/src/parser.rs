@@ -21,7 +21,8 @@ use self::lexing::{Token, TokenValue};
 pub fn parse(file_name : Option<&str>, code : &str) -> anyhow::Result<Module> {
     let mut state = ParserState::new(code);
     state.file_name = file_name;
-    Err(RugsError::Parse { msg: "bah".to_string(), loc: Location::Unlocated }.into())
+    let module = state.parse_module()?;
+    Ok(module)
 }
 
 pub fn parse_expression(expr : &str) -> anyhow::Result<Expression> {

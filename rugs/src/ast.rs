@@ -9,7 +9,7 @@ use crate::location::Location;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Module {
-    pub name : String,
+    pub name : Identifier,
     pub file : Option<String>,
     pub trivia : Vec<Annotation>,
     pub annotations : HashMap<NodeId, Annotation>,
@@ -22,7 +22,7 @@ pub struct Module {
 impl Module {
     pub fn new() -> Module {
         Module { 
-            name: String::new(),
+            name: module(""),
             file: None,
             trivia: Vec::new(),
             annotations: HashMap::new(),
@@ -54,15 +54,13 @@ pub enum ExposedSpec {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Import {
     Var(Identifier),
-    Type(ExposedSpec),
-    Class(ExposedSpec)
+    TypeOrClass(Identifier, ExposedSpec)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Export {
     Var(Identifier),
-    Type(ExposedSpec),
-    Class(ExposedSpec),
+    TypeOrClass(Identifier, ExposedSpec),
     Module(Identifier)
 }
 
@@ -118,20 +116,20 @@ pub struct Newtype {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Class {
-    id : NodeId,
-    context: Vec<Context>,
-    tycls : Identifier,
-    tyvars : Vec<Identifier>,
-    decls : Vec<Declaration>
+    pub id : NodeId,
+    pub context: Vec<Context>,
+    pub tycls : Identifier,
+    pub tyvars : Vec<Identifier>,
+    pub decls : Vec<Declaration>
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instance {
-    id : NodeId,
-    context : Vec<Context>,
-    tycon : Identifier,
-    tyvars : Vec<Identifier>,
-    decls : Vec<Declaration>
+    pub id : NodeId,
+    pub context : Vec<Context>,
+    pub tycon : Identifier,
+    pub tyvars : Vec<Identifier>,
+    pub decls : Vec<Declaration>
 }
 
 
@@ -143,13 +141,13 @@ pub enum Constructor {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeField {
-    label: Identifier,
-    the_type : Type
+    pub label: Identifier,
+    pub the_type : Type
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct Foreign {
-    id : NodeId,
-    decl : ForeignDeclaration
+    pub id : NodeId,
+    pub decl : ForeignDeclaration
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -237,8 +235,8 @@ pub enum Type {
 // TODO: Implement
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
-    tycls : Identifier,
-    args : Vec<Type>
+    pub tycls : Identifier,
+    pub args : Vec<Type>
 }
 
 pub type NodeId = u32;
@@ -343,6 +341,19 @@ pub trait AstMaker {
 
     fn expr(&mut self, value : ExpressionValue) -> Expression {
         Expression { id: self.next_id(), value: Box::new(value) }
+    }
+
+    fn new_import_decl(&mut self, name : Identifier) -> ImportDecl {
+        ImportDecl { id: self.next_id(), name: name, qualified: false,
+                     alias: None, specific: None, hidden: None }
+    }
+
+    fn context(&mut self, tycls : Identifier, args : Vec<Type>) -> Context {
+        Context { tycls, args}
+    }
+
+    fn new_class(&mut self, name : Identifier) -> Class {
+        Class { id: self.next_id(), context: Vec::new(), tycls: name, tyvars: Vec::new(), decls: Vec::new() }
     }
 
     fn app(&mut self, f : Expression, arg: Expression) -> Expression {

@@ -53,36 +53,44 @@ impl<'a> ParserState<'a> {
                             Ok(Export::Type(ExposedSpec::All))
                         },
                         _ => {
-                            let mut is_tycls : Option<bool> = None;
-                            self.push_token(TokenValue::LeftParen.into());
-                            let cons = self.parse_paren_list(|this| {
+                            let mut is_tycls  = false;
+                            let mut cons = Vec::new();
+                            let tok = self.get_next_token()?;
+
+                            match tok.value {
+                                TokenValue::QConId(_,_) | TokenValue::ConId(_) => {
+                                    is_tycls = false;
+                                    cons.push(Identifier::try_from(tok)?);
+                                },
+                                TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
+                                    is_tycls = true;
+                                    cons.push(Identifier::try_from(tok)?);
+                                },
+                                TokenValue::RightParen => return Ok(Export::Type(ExposedSpec::None)),
+                                _ => return error("Bad export list", tok.location)
+                            }
+                            loop {
                                 let tok = self.get_next_token()?;
-                                if let Some(b) = is_tycls {
-                                    match tok.value {
-                                        TokenValue::QConId(_,_) | TokenValue::ConId(_) if !b
-                                            => Ok(Identifier::try_from(tok)?),
-                                        TokenValue::QVarId(_, _) | TokenValue::VarId(_) if b
-                                            => Ok(Identifier::try_from(tok)?),
-                                        _ => error("Invalid export", tok.location)
-                                    }
-                                } else {
-                                    match tok.value {
-                                        TokenValue::QConId(_,_) | TokenValue::ConId(_) => {
-                                                is_tycls = Some(false);
-                                                Ok(Identifier::try_from(tok)?)
-                                            },
-                                        TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
-                                            is_tycls = Some(true);
-                                            Ok(Identifier::try_from(tok)?)
-                                        },
-                                        _ => error("Invalid export", tok.location)
-                                    }
+                                match tok.value {
+                                    TokenValue::QConId(_,_) | TokenValue::ConId(_) if !is_tycls
+                                        => cons.push(Identifier::try_from(tok)?),
+                                    TokenValue::QVarId(_, _) | TokenValue::VarId(_) if is_tycls
+                                        => cons.push(Identifier::try_from(tok)?),
+                                    TokenValue::RightParen => break,
+                                    _ => return error("bad export list", tok.location)
                                 }
-                            })?;
-                            match is_tycls {
-                                Some(true) => Ok(Export::Class(ExposedSpec::List(cons))),
-                                Some(false) => Ok(Export::Type(ExposedSpec::List(cons))),
-                                None => Ok(Export::Type(ExposedSpec::List(cons)))
+                                let tok = self.get_next_token()?;
+                                match tok.value {
+                                    TokenValue::Comma => {},
+                                    TokenValue::RightParen => break,
+                                    _ => return error("bad export list", tok.location)
+                                }
+                               
+                            }
+                            if is_tycls {
+                                Ok(Export::Class(ExposedSpec::List(cons)))
+                            } else {
+                                Ok(Export::Type(ExposedSpec::List(cons)))
                             }
                         }
                     }

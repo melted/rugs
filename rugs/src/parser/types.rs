@@ -5,7 +5,7 @@ use super::{ParserState, lexing::{TokenValue, Token}, declaration::DeclKind};
 impl<'a> ParserState<'a> {
     pub (super) fn parse_class(&mut self) -> anyhow::Result<Class> {
         self.expect(TokenValue::Class)?;
-        let context = self.try_parse_context(true)?;
+        let context = self.try_parse_scontext()?;
         let mut tok = Token::default_conid();
         self.expect_token_value(&mut tok)?;
         let name = Identifier::try_from(tok)?;
@@ -55,7 +55,11 @@ impl<'a> ParserState<'a> {
         unimplemented!()
     }
 
-    pub (super) fn try_parse_context(&mut self, simple : bool) -> anyhow::Result<Vec<Context>> {
+    pub (super) fn try_parse_context(&mut self) -> anyhow::Result<Vec<Context>> {
+        unimplemented!()
+    }
+
+    pub (super) fn try_parse_scontext(&mut self) -> anyhow::Result<Vec<Context>> {
         unimplemented!()
     }
 }

@@ -105,7 +105,7 @@ impl<'a> ParserState<'a> {
                 unimplemented!()
             },
             _ => {
-                self.push_token(tok);
+                self.rewind_lexer(1);
                 self.parse_fexp()
             }
         }

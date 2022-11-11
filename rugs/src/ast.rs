@@ -8,12 +8,17 @@ use num_bigint::BigInt;
 use crate::location::Location;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Module {
-    pub name : Identifier,
+pub struct Metadata {
     pub file : Option<String>,
     pub trivia : Vec<Annotation>,
     pub annotations : HashMap<NodeId, Annotation>,
     pub locations : HashMap<NodeId, Location>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Module {
+    pub name : Identifier,
+    pub metadata : Metadata,
     pub imports : Vec<ImportDecl>,
     pub exports : Option<Vec<Export>>,
     pub declarations : Vec<TopDeclaration>
@@ -23,13 +28,21 @@ impl Module {
     pub fn new() -> Module {
         Module { 
             name: module(""),
-            file: None,
-            trivia: Vec::new(),
-            annotations: HashMap::new(),
-            locations: HashMap::new(),
+            metadata: Metadata::new(),
             imports: Vec::new(),
             exports: None,
             declarations: Vec::new()
+        }
+    }
+}
+
+impl Metadata {
+    pub fn new() -> Metadata {
+        Metadata {
+            file: None,
+            trivia: Vec::new(),
+            annotations: HashMap::new(),
+            locations: HashMap::new()
         }
     }
 }

@@ -5,24 +5,42 @@ use crate::{ast::{Identifier, qconid, qvarid, qconsym, qvarsym, conid, varid, co
 
 impl<'a> super::ParserState<'a> {
     pub (super) fn get_next_token(&mut self) -> anyhow::Result<Token> {
-        if let Some(tok) = self.pushed_back.pop_front() {
-            return Ok(tok);
-        }
-        let tok =  self.next_token()?;
-        self.check_layout_start(&tok);
-        let token = self.layout(tok)?;
+        let token = if let Some(tok) = self.pushed_back.pop_front() {
+            tok
+        } else {
+            let tok =  self.next_token()?;
+            self.check_layout_start(&tok);
+            self.layout(tok)?
+        };
+        self.consumed_tokens.push(token.clone());
         Ok(token)
     }
 
     pub (super) fn peek_next_token(&mut self) -> anyhow::Result<Token> {
-        let token = self.get_next_token()?;
+        let token = if let Some(tok) = self.pushed_back.pop_front() {
+            tok
+        } else {
+            let tok =  self.next_token()?;
+            self.check_layout_start(&tok);
+            self.layout(tok)?
+        };
         self.pushed_back.push_front(token.clone());
         Ok(token)
     }
 
     pub (super) fn push_token(&mut self, token : Token) {
         self.pushed_back.push_front(token)
-    } 
+    }
+
+    pub (super) fn rewind_lexer(&mut self, n : usize) {
+        for _ in 0..n {
+            if let Some(tok) = self.consumed_tokens.pop() {
+                self.pushed_back.push_front(tok);
+            } else {
+                break;
+            }
+        }
+    }
 
     fn check_layout_start(&mut self, tok: &Token) {
         match tok.value {

@@ -1,14 +1,16 @@
 use std::fmt::Display;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Location {
     Offset { start : usize, end : usize },
-    InContext {
-        file : String,
-        start : (usize, usize),
-        end : (usize, usize)
-    },
     Unlocated
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FileLocation {  
+    file : String,
+    start : (usize, usize),
+    end : (usize, usize)
 }
 
 impl Display for Location {
@@ -18,18 +20,21 @@ impl Display for Location {
                 write!(f, "offset {}-{}", start, end)?;
                 Ok(())
             },
-            Location::InContext { file, start, end } => {
-                if start.0 == end.0 {
-                    write!(f, "file {}: line {}:{}-{}", file, start.0, start.1, end.1)?;
-                } else {
-                    write!(f, "file {}: lines {}:{}-{}:{}", file, start.0, start.1, end.0, end.1)?;
-                }
-                Ok(())
-            },
             Location::Unlocated => {
                 write!(f, "unknown location")?;
                 Ok(())
             }
         }
+    }
+}
+
+impl Display for FileLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.start.0 == self.end.0 {
+            write!(f, "file {}: line {}:{}-{}", self.file, self.start.0, self.start.1, self.end.1)?;
+        } else {
+            write!(f, "file {}: lines {}:{}-{}:{}", self.file, self.start.0, self.start.1, self.end.0, self.end.1)?;
+        }
+        Ok(())
     }
 }

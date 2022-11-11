@@ -65,6 +65,19 @@ impl<'a> ParserState<'a> {
         self.optional_token(TokenValue::VirtualSemicolon)
     }
 
+    pub (super) fn try_parse<T>(&mut self, 
+                                mut inner_parser : impl FnMut(&mut Self) -> anyhow::Result<T>) -> anyhow::Result<Option<T>> {
+        let start = self.consumed_tokens.len();
+        match inner_parser(self) {
+            Ok(res) => Ok(Some(res)),
+            Err(_) => {
+                let tokens_used = self.consumed_tokens.len() - start;
+                self.rewind_lexer(tokens_used);
+                Ok(None)
+            }
+        }
+    }
+
     pub (super) fn parse_braced_list<T>(&mut self,
                                    mut inner_parser : impl FnMut(&mut Self, bool) -> anyhow::Result<T>) 
                                    -> anyhow::Result<Vec<T>> {

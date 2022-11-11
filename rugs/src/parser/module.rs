@@ -59,7 +59,7 @@ impl<'a> ParserState<'a> {
             },
             TokenValue::Module => {
                 let tok = self.get_next_token()?;
-                let modid = Identifier::try_from(tok.value)?;
+                let modid = Identifier::try_from(tok)?;
                 Ok(Export::Module(modid))
             },
             _ => error("Invalid export", tok.location)
@@ -147,7 +147,7 @@ impl<'a> ParserState<'a> {
                     Ok(ExposedSpec::All)
                 },
                 _ => {
-                    self.push_token(TokenValue::LeftParen.into());
+                    self.rewind_lexer(1);
                     let cons = self.parse_paren_list(Self::parse_qvarcon)?;
                     Ok(ExposedSpec::List(cons))
                 }

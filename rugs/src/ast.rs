@@ -130,7 +130,7 @@ pub struct Newtype {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Class {
     pub id : NodeId,
-    pub context: Vec<Context>,
+    pub context: Context,
     pub tycls : Identifier,
     pub tyvars : Vec<Identifier>,
     pub decls : Vec<Declaration>
@@ -139,7 +139,7 @@ pub struct Class {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Instance {
     pub id : NodeId,
-    pub context : Vec<Context>,
+    pub context : Context,
     pub tycon : Identifier,
     pub tyvars : Vec<Identifier>,
     pub decls : Vec<Declaration>
@@ -194,7 +194,7 @@ pub struct Declaration {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeclarationValue {
-    TypeDecl(Vec<Identifier>, Vec<Context>, Type),
+    TypeDecl(Vec<Identifier>, Context, Type),
     Fixity(Vec<Identifier>, Association, u32),
     VarBind(Identifier, Binding),
     FunBind(FunBind, Binding)
@@ -245,11 +245,9 @@ pub enum Type {
     Fun(Box<Type>, Box<Type>)
 }
 
-// TODO: Implement
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
-    pub tycls : Identifier,
-    pub args : Vec<Type>
+    pub classes : Vec<(Identifier, Vec<Type>)>
 }
 
 pub type NodeId = u32;
@@ -275,7 +273,7 @@ pub enum ExpressionValue {
     If(Expression, Expression, Expression),
     Case(Expression, Vec<CaseAlt>),
     Infix(Identifier, Expression, Expression),
-    Typed(Expression, Vec<Context>, Type),
+    Typed(Expression, Context, Type),
     Lambda(Vec<Pattern>, Expression),
     // Apologia for Wrapped: Infix expressions are desugared after parsing because
     // infix declarations can come after an expression that is affected by them in the source,
@@ -361,12 +359,12 @@ pub trait AstMaker {
                      alias: None, specific: None, hidden: None }
     }
 
-    fn context(&mut self, tycls : Identifier, args : Vec<Type>) -> Context {
-        Context { tycls, args}
+    fn new_context(&mut self) -> Context {
+        Context { classes: Vec::new() }
     }
 
     fn new_class(&mut self, name : Identifier) -> Class {
-        Class { id: self.next_id(), context: Vec::new(), tycls: name, tyvars: Vec::new(), decls: Vec::new() }
+        Class { id: self.next_id(), context: self.new_context(), tycls: name, tyvars: Vec::new(), decls: Vec::new() }
     }
 
     fn app(&mut self, f : Expression, arg: Expression) -> Expression {
@@ -410,7 +408,7 @@ pub trait AstMaker {
         self.expr(ExpressionValue::If(predicate, then_exp, else_exp))
     }
 
-    fn typed(&mut self, exp :Expression, c: Vec<Context>, t:Type) -> Expression {
+    fn typed(&mut self, exp :Expression, c: Context, t:Type) -> Expression {
         self.expr(ExpressionValue::Typed(exp, c, t))
     }
 

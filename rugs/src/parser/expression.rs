@@ -9,8 +9,8 @@ impl<'a> ParserState<'a> {
     pub (super) fn parse_expression(&mut self) -> anyhow::Result<Expression> {
         let exp = self.parse_infix_expression()?;
         if self.is_next(TokenValue::DoubleColon)? {
-            // TODO: Parse context and type
-            Ok(self.typed(exp, Vec::new(), Type::Base(conid("A"))))
+            let context = self.try_parse(Self::parse_context)?.unwrap_or(self.new_context());
+            Ok(self.typed(exp, context, Type::Base(conid("A"))))
         } else {
             Ok(exp)
         }

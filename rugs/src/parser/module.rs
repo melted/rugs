@@ -11,7 +11,7 @@ impl<'a> ParserState<'a> {
         let module_name = if self.is_next(TokenValue::Module)? {
             let modid = self.parse_module_name()?;
             if let TokenValue::LeftParen = self.peek_next_token()?.value {
-                let exports = self.parse_paren_list(Self::parse_export)?;
+                let exports = self.parse_paren_list(&mut Self::parse_export)?;
                 this_module.exports = Some(exports);
             }
             self.expect(TokenValue::Where)?;
@@ -97,7 +97,7 @@ impl<'a> ParserState<'a> {
         }
         let hiding = self.is_next(Token::varid("hiding").value)?;
         if self.peek_next(TokenValue::LeftParen)? {
-            let impspec = self.parse_paren_list(Self::parse_import)?;
+            let impspec = self.parse_paren_list(&mut Self::parse_import)?;
             if hiding {
                 import.hidden = Some(impspec);
             } else {
@@ -148,7 +148,7 @@ impl<'a> ParserState<'a> {
                 },
                 _ => {
                     self.rewind_lexer(1);
-                    let cons = self.parse_paren_list(Self::parse_qvarcon)?;
+                    let cons = self.parse_paren_list(&mut Self::parse_cname)?;
                     Ok(ExposedSpec::List(cons))
                 }
             }

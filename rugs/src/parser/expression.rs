@@ -9,7 +9,7 @@ impl<'a> ParserState<'a> {
     pub (super) fn parse_expression(&mut self) -> anyhow::Result<Expression> {
         let exp = self.parse_infix_expression()?;
         if self.is_next(TokenValue::DoubleColon)? {
-            let context = self.try_parse(Self::parse_context)?.unwrap_or(self.new_context());
+            let context = self.try_parse(&mut Self::parse_context)?.unwrap_or(self.new_context());
             Ok(self.typed(exp, context, Type::Base(conid("A"))))
         } else {
             Ok(exp)
@@ -75,7 +75,7 @@ impl<'a> ParserState<'a> {
             },
             TokenValue::Let => {
                 let decls = self.parse_braced_list(
-                    |this, is_virtual| {
+                    &mut |this, is_virtual| {
                         let res = this.parse_declaration(DeclKind::Normal)?;
                         if is_virtual && this.is_next(TokenValue::In)? {
                             this.push_token(TokenValue::VirtualRightBrace.into());
@@ -98,7 +98,7 @@ impl<'a> ParserState<'a> {
             TokenValue::Case => {
                 let exp = self.parse_expression()?;
                 self.expect(TokenValue::Of)?;
-                let alts = self.parse_braced_list(ParserState::parse_case_alt)?;
+                let alts = self.parse_braced_list(&mut ParserState::parse_case_alt)?;
                 Ok(self.case_expression(exp, alts))
             },
             TokenValue::Do => {

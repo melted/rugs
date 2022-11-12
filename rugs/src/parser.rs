@@ -76,6 +76,11 @@ impl<'a> ParserState<'a> {
             counter: 0
         }
     }
+
+    pub (self) fn error(&self, msg : &str) -> anyhow::Error {
+        RugsError::Parse { msg: msg.to_string(),
+             loc: Location::Offset { start: self.pos, end: self.pos } }.into()
+    }
 }
 
 impl<'a> AstMaker for ParserState<'a> {

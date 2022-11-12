@@ -48,6 +48,12 @@ impl Metadata {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct TopExpression {
+    metadata : Metadata,
+    expression : Expression
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImportDecl {
     pub id : NodeId,
     pub name : Identifier,
@@ -112,19 +118,18 @@ pub struct TypeDecl {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Data {
-    id : NodeId,
-    tycon : Identifier,
-    tyvars : Vec<Identifier>,
-    constructors : Vec<Constructor>,
-    deriving : Vec<Identifier>
+    pub id : NodeId,
+    pub this_type : Type,
+    pub constructors : Vec<Constructor>,
+    pub deriving : Vec<Identifier>
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Newtype {
-    id : NodeId,
-    tycon : Identifier,
-    tyvars : Vec<Identifier>,
-    constructor : Constructor
+    pub id : NodeId,
+    pub this_type : Type,
+    pub constructor : Constructor,
+    pub deriving : Vec<Identifier>
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -236,15 +241,42 @@ pub enum Const {
     String(String)
 }
 
-// TODO: Implement
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Base(Identifier),
     Var(Identifier),
-    App(Identifier, Vec<Type>),
+    App(Box<Type>, Box<Type>),
+    Tuple(Vec<Type>),
+    List(Box<Type>),
     Fun(Box<Type>, Box<Type>)
 }
 
+
+impl Type {
+    pub (super) fn base(name : Identifier) -> Type {
+        Type::Base(name)
+    }
+
+    pub (super) fn var(name : Identifier) -> Type {
+        Type::Var(name)
+    }
+
+    pub (super) fn app(self, rhs : Type) -> Type {
+        Type::App(Box::new(self), Box::new(rhs))
+    }
+
+    pub (super) fn list(self) -> Type {
+        Type::List(Box::new(self))
+    }
+
+    pub (super) fn tuple(types : Vec<Type>) -> Type {
+        Type::Tuple(types)
+    }
+
+    pub (super) fn fun(self, rhs : Type) -> Type {
+        Type::Fun(Box::new(self), Box::new(rhs))
+    }
+}
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
     pub classes : Vec<(Identifier, Vec<Type>)>
@@ -364,7 +396,21 @@ pub trait AstMaker {
     }
 
     fn new_class(&mut self, name : Identifier) -> Class {
-        Class { id: self.next_id(), context: self.new_context(), tycls: name, tyvars: Vec::new(), decls: Vec::new() }
+        Class { id: self.next_id(), context: self.new_context(), tycls: name,
+                tyvars: Vec::new(), decls: Vec::new() }
+    }
+
+    fn new_data(&mut self, the_type : Type) -> Data {
+        Data { id: self.next_id(), this_type: the_type,
+               constructors: Vec::new(), deriving: Vec::new() }
+    }
+
+    fn new_newtype(&mut self, the_type : Type, constructor : Constructor) -> Newtype {
+        Newtype { id: self.next_id(), this_type: the_type, constructor: constructor, deriving: Vec::new() }
+    }
+
+    fn new_typedecl(&mut self, this_type : Type, that_type : Type) -> TypeDecl {
+        TypeDecl { id: self.next_id(), alias: this_type, the_type: that_type }
     }
 
     fn app(&mut self, f : Expression, arg: Expression) -> Expression {
@@ -374,7 +420,6 @@ pub trait AstMaker {
     fn infix(&mut self, op: Identifier, left: Expression, right: Expression) -> Expression {
         self.expr(ExpressionValue::Infix(op, left, right))
     }
-
 
     fn var(&mut self, name : Identifier) -> Expression {
         self.expr(ExpressionValue::Var(name))

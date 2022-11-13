@@ -47,4 +47,32 @@ impl<'a> ParserState<'a> {
     pub (super) fn parse_default_declaration(&mut self) -> anyhow::Result<Vec<Type>> {
         unimplemented!()
     }
+
+    pub (super) fn parse_type_signature(&mut self) -> anyhow::Result<Vec<Declaration>> {
+        unimplemented!()
+    }
+
+    pub (super) fn parse_fixity_declaration(&mut self) -> anyhow::Result<Vec<Declaration>> {
+        let assoc = match self.get_next_token()?.value {
+            TokenValue::Infix => Association::NonAssociative,
+            TokenValue::Infixl => Association::Left,
+            TokenValue::Infixr => Association::Right,
+            _ => return Err(self.error("Expected infix declaration"))
+        };
+        let prec = match self.peek_next_token()?.value {
+            TokenValue::Integer(bn) => {
+                let n : u32 = bn.try_into().unwrap_or(1000);
+                if  n > 9 {
+                    return Err(self.error("precedence must be betweem 0 and 9"));
+                }
+                n
+            },
+            _ => 9
+        };
+        let ops = self.parse_separated_by(&mut Self::parse_op, TokenValue::Comma)?;
+        let output = ops.into_iter().map(
+            |var| self.new_declaration(DeclarationValue::Fixity(var, assoc, prec)
+            )).collect();
+        Ok(output)
+    }
 }

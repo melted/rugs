@@ -172,4 +172,7 @@ impl<'a> ParserState<'a> {
         unimplemented!()
     }
 
+    fn parse_seqsyntax(&mut self, kind: SeqKind) -> anyhow::Result<SeqSyntax> {
+        unimplemented!()
+    }
 }

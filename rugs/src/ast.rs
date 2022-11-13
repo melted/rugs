@@ -203,8 +203,8 @@ pub struct Declaration {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeclarationValue {
-    TypeDecl(Vec<Identifier>, Context, Type),
-    Fixity(Vec<Identifier>, Association, u32),
+    TypeDecl(Identifier, Context, Type),
+    Fixity(Identifier, Association, u32),
     VarBind(Identifier, Binding),
     FunBind(FunBind, Binding)
 }
@@ -214,6 +214,13 @@ pub enum Association {
     Left,
     Right,
     NonAssociative
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SeqKind {
+    Do,
+    Guard,
+    Comprehension
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -429,6 +436,10 @@ pub trait AstMaker {
 
     fn new_foreign(&mut self, decl : ForeignDeclaration) -> Foreign {
         Foreign { id: self.next_id(), decl: decl }
+    }
+
+    fn new_declaration(&mut self, decl : DeclarationValue) -> Declaration {
+        Declaration { id: self.next_id(), value: decl }
     }
 
     fn app(&mut self, f : Expression, arg: Expression) -> Expression {

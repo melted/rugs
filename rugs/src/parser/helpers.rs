@@ -165,6 +165,15 @@ impl<'a> ParserState<'a> {
         }
     }
 
+    pub (super) fn parse_word(&mut self) -> anyhow::Result<String> {
+        let tok = self.get_next_token()?;
+        match tok.value {
+            TokenValue::VarId(s) => Ok(s),
+            TokenValue::ConId(s) => Ok(s),
+            _ => error("expected a varid", tok.location)
+        }
+    }
+
     pub (super) fn parse_qvarid(&mut self) -> anyhow::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {

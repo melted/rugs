@@ -147,23 +147,25 @@ pub struct Class {
 pub struct Instance {
     pub id : NodeId,
     pub context : Context,
-    pub tycon : Identifier,
-    pub tyvars : Vec<Identifier>,
+    pub class : Identifier,
+    pub ty : Type,
     pub decls : Vec<Declaration>
 }
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Constructor {
-    Plain { con: Identifier, the_types: Vec<Type> },
+    Plain { con: Identifier, the_types: Vec<(bool,Type)> },
     Labelled { con: Identifier, fields: Vec<TypeField> }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeField {
     pub label: Identifier,
-    pub the_type : Type
+    pub the_type : Type,
+    pub is_strict : bool
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Foreign {
     pub id : NodeId,
@@ -180,14 +182,14 @@ pub enum Safety {
 pub enum ForeignDeclaration {
     Import {
         callconv : String,
-        impent : String,
-        safety : Safety,
+        impent : Option<String>,
+        safety : Option<Safety>,
         var : Identifier,
         ftype : Type
     },
     Export {
         callconv : String,
-        expent : String,
+        expent : Option<String>,
         var : Identifier,
         ftype : Type
     }
@@ -250,7 +252,11 @@ pub enum Type {
     App(Box<Type>, Box<Type>),
     Tuple(Vec<Type>),
     List(Box<Type>),
-    Fun(Box<Type>, Box<Type>)
+    Fun(Box<Type>, Box<Type>),
+    Simple {
+        base: Identifier,
+        tyvars: Vec<Identifier>
+    }
 }
 
 
@@ -278,7 +284,9 @@ impl Type {
     pub (super) fn fun(self, rhs : Type) -> Type {
         Type::Fun(Box::new(self), Box::new(rhs))
     }
+
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Context {
     pub classes : Vec<(Identifier, Vec<Type>)>
@@ -360,7 +368,7 @@ pub enum PatternValue {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Identifier {
     Var { 
         module: Option<String>,
@@ -413,6 +421,14 @@ pub trait AstMaker {
 
     fn new_typedecl(&mut self, this_type : Type, that_type : Type) -> TypeDecl {
         TypeDecl { id: self.next_id(), alias: this_type, the_type: that_type }
+    }
+
+    fn new_instance(&mut self, class:Identifier, ty:Type) -> Instance {
+        Instance { id: self.next_id(), context: self.new_context(), class: class, ty: ty, decls: Vec::new() }
+    }
+
+    fn new_foreign(&mut self, decl : ForeignDeclaration) -> Foreign {
+        Foreign { id: self.next_id(), decl: decl }
     }
 
     fn app(&mut self, f : Expression, arg: Expression) -> Expression {

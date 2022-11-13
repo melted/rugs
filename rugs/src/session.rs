@@ -1,16 +1,22 @@
-use std::{collections::HashMap, io::{Read, stdin}, fs::File};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{stdin, Read},
+};
 
 #[derive(Debug)]
 pub struct Session {
-    pub source : HashMap<String, String>
+    pub source: HashMap<String, String>,
 }
 
 impl Session {
     pub fn new() -> Session {
-        Session { source: HashMap::new() }
+        Session {
+            source: HashMap::new(),
+        }
     }
 
-    pub fn load(&mut self, files : Vec<String>) -> std::io::Result<()> {
+    pub fn load(&mut self, files: Vec<String>) -> std::io::Result<()> {
         for path in files.iter() {
             let mut file = File::open(path)?;
             let mut code = String::new();

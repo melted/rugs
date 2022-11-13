@@ -1,14 +1,14 @@
 use std::io;
 
 use clap::Parser;
-use rugs::parser::dump_tokens;
 use rugs::cli::Args;
+use rugs::parser::dump_tokens;
 use rugs::session::Session;
 
 fn main() -> Result<(), std::io::Error> {
     let args = Args::parse();
     let mut session = Session::new();
-    if !args.file_names.is_empty() { 
+    if !args.file_names.is_empty() {
         session.load(args.file_names)?;
     }
     if args.stdin {

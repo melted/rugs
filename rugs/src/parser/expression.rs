@@ -1,15 +1,16 @@
 use super::declaration::DeclKind;
 use super::helpers::error;
-use super::{ParserState};
 use super::lexing::{Token, TokenValue};
+use super::ParserState;
 use crate::{ast::*, location::Location};
 
-
 impl<'a> ParserState<'a> {
-    pub (super) fn parse_expression(&mut self) -> anyhow::Result<Expression> {
+    pub(super) fn parse_expression(&mut self) -> anyhow::Result<Expression> {
         let exp = self.parse_infix_expression()?;
         if self.is_next(TokenValue::DoubleColon)? {
-            let context = self.try_parse(&mut |this| this.parse_context(false))?.unwrap_or(self.new_context());
+            let context = self
+                .try_parse(&mut |this| this.parse_context(false))?
+                .unwrap_or(self.new_context());
             let ty = self.parse_type()?;
             Ok(self.typed(exp, context, ty))
         } else {
@@ -40,7 +41,7 @@ impl<'a> ParserState<'a> {
             TokenValue::If => self.parse_if_expression(),
             TokenValue::Case => self.parse_case_expression(),
             TokenValue::Do => self.parse_do_expression(),
-            _ => self.parse_fexp()
+            _ => self.parse_fexp(),
         }
     }
 
@@ -58,12 +59,15 @@ impl<'a> ParserState<'a> {
         let expr = match tok.value {
             TokenValue::LeftParen => self.parse_parens_exp()?,
             TokenValue::LeftBracket => self.parse_bracket_exp()?,
-            TokenValue::QConId(_, _) | TokenValue::QVarId(_, _) | TokenValue::ConId(_) | TokenValue::VarId(_) => self.var(Identifier::try_from(tok)?),
+            TokenValue::QConId(_, _)
+            | TokenValue::QVarId(_, _)
+            | TokenValue::ConId(_)
+            | TokenValue::VarId(_) => self.var(Identifier::try_from(tok)?),
             TokenValue::Char(ch) => self.char_const(&ch),
             TokenValue::Float(d) => self.float(&d),
             TokenValue::Integer(bn) => self.integer(bn),
             TokenValue::String(s) => self.string_const(&s),
-            t => return error(&format!("unexpected token {:?} in aexp", t), tok.location)
+            t => return error(&format!("unexpected token {:?} in aexp", t), tok.location),
         };
         if self.is_next(TokenValue::LeftBrace)? {
             // Record stuff
@@ -78,8 +82,8 @@ impl<'a> ParserState<'a> {
         let exp = match tok.value {
             TokenValue::RightParen => {
                 self.get_next_token()?;
-                return Ok(self.var(conid("()")))
-            },
+                return Ok(self.var(conid("()")));
+            }
             TokenValue::Comma => {
                 let mut con = "(".to_string();
                 while self.is_next(TokenValue::Comma)? {
@@ -87,9 +91,9 @@ impl<'a> ParserState<'a> {
                 }
                 self.expect(TokenValue::RightParen)?;
                 con.push(')');
-                return Ok(self.var(conid(&con)))
-            },
-            _ => self.parse_expression()?
+                return Ok(self.var(conid(&con)));
+            }
+            _ => self.parse_expression()?,
         };
         let tok = self.get_next_token()?;
         match tok.value {
@@ -101,14 +105,24 @@ impl<'a> ParserState<'a> {
                     tuple.push(e);
                     let tok = self.get_next_token()?;
                     match tok.value {
-                        TokenValue::Comma => {},
+                        TokenValue::Comma => {}
                         TokenValue::RightParen => break,
-                        _ => return error(&format!("Unexpected token {:?} in tuple expression", tok), tok.location)
+                        _ => {
+                            return error(
+                                &format!("Unexpected token {:?} in tuple expression", tok),
+                                tok.location,
+                            )
+                        }
                     }
                 }
                 Ok(self.tuple(tuple))
             }
-            _ => return error(&format!("Expected right paren or comma, got {:?}", tok), tok.location)
+            _ => {
+                return error(
+                    &format!("Expected right paren or comma, got {:?}", tok),
+                    tok.location,
+                )
+            }
         }
     }
 
@@ -126,14 +140,13 @@ impl<'a> ParserState<'a> {
 
     fn parse_let_expression(&mut self) -> anyhow::Result<Expression> {
         self.expect(TokenValue::Let)?;
-        let decls = self.parse_braced_list(
-            &mut |this, is_virtual| {
-                let res = this.parse_declaration(DeclKind::Normal)?;
-                if is_virtual && this.is_next(TokenValue::In)? {
-                    this.push_token(TokenValue::VirtualRightBrace.into());
-                }
-                Ok(res)
-            })?;
+        let decls = self.parse_braced_list(&mut |this, is_virtual| {
+            let res = this.parse_declaration(DeclKind::Normal)?;
+            if is_virtual && this.is_next(TokenValue::In)? {
+                this.push_token(TokenValue::VirtualRightBrace.into());
+            }
+            Ok(res)
+        })?;
         let exp = self.parse_expression()?;
         Ok(self.let_expression(decls, exp))
     }
@@ -168,7 +181,7 @@ impl<'a> ParserState<'a> {
         unimplemented!()
     }
 
-    fn parse_case_alt(&mut self, is_virtual : bool) -> anyhow::Result<CaseAlt> {
+    fn parse_case_alt(&mut self, is_virtual: bool) -> anyhow::Result<CaseAlt> {
         unimplemented!()
     }
 

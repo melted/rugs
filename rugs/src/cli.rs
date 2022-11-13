@@ -1,4 +1,3 @@
-
 use clap::Parser;
 
 #[derive(Parser)]
@@ -6,12 +5,12 @@ use clap::Parser;
 pub struct Args {
     /// Dump the tokens from the lexer stage
     #[arg(long)]
-    pub dump_tokens : bool,
+    pub dump_tokens: bool,
 
     /// Input files
-    pub file_names : Vec<String>,
+    pub file_names: Vec<String>,
 
     /// Load from stdin
     #[arg(long)]
-    pub stdin : bool
+    pub stdin: bool,
 }

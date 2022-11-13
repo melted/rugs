@@ -1,12 +1,14 @@
 use anyhow::Ok;
 
-use super::{ParserState, lexing::{TokenValue, Token}};
-use crate::{ast::*};
 use super::helpers::error;
-
+use super::{
+    lexing::{Token, TokenValue},
+    ParserState,
+};
+use crate::ast::*;
 
 impl<'a> ParserState<'a> {
-    pub (super) fn parse_module(&mut self) -> anyhow::Result<Module> {
+    pub(super) fn parse_module(&mut self) -> anyhow::Result<Module> {
         let mut this_module = Module::new();
         let module_name = if self.is_next(TokenValue::Module)? {
             let modid = self.parse_module_name()?;
@@ -24,17 +26,17 @@ impl<'a> ParserState<'a> {
         Ok(this_module)
     }
 
-    fn parse_body(&mut self, module : &mut Module) -> anyhow::Result<()> {
+    fn parse_body(&mut self, module: &mut Module) -> anyhow::Result<()> {
         let brace = self.get_next_token()?;
         let is_virtual = match brace.value {
             TokenValue::LeftBrace => false,
             TokenValue::VirtualLeftBrace => true,
-            _ => return error("Missing brace at start of body", brace.location)
+            _ => return error("Missing brace at start of body", brace.location),
         };
         let tok = self.peek_next_token()?;
         let imports = match tok.value {
             TokenValue::Import => self.parse_import_declarations()?,
-            _ => Vec::new()
+            _ => Vec::new(),
         };
         let decls = self.parse_top_declarations()?;
         if is_virtual {
@@ -50,19 +52,20 @@ impl<'a> ParserState<'a> {
     fn parse_export(&mut self) -> anyhow::Result<Export> {
         let tok = self.get_next_token()?;
         match tok.value {
-            TokenValue::QVarId(_, _) | TokenValue::VarId(_) 
-                => Ok(Export::Var(Identifier::try_from(tok)?)),
+            TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
+                Ok(Export::Var(Identifier::try_from(tok)?))
+            }
             TokenValue::QConId(_, _) | TokenValue::ConId(_) => {
-                let id=Identifier::try_from(tok)?;
+                let id = Identifier::try_from(tok)?;
                 let spec = self.parse_exposed_spec()?;
-                Ok(Export::TypeOrClass(id, spec)) 
-            },
+                Ok(Export::TypeOrClass(id, spec))
+            }
             TokenValue::Module => {
                 let tok = self.get_next_token()?;
                 let modid = Identifier::try_from(tok)?;
                 Ok(Export::Module(modid))
-            },
-            _ => error("Invalid export", tok.location)
+            }
+            _ => error("Invalid export", tok.location),
         }
     }
 
@@ -75,9 +78,9 @@ impl<'a> ParserState<'a> {
                 match tok.value {
                     TokenValue::Semicolon => {
                         self.get_next_token()?;
-                    },
+                    }
                     TokenValue::RightBrace | TokenValue::VirtualRightBrace => break,
-                    _ => return error("expected semicolon or right brace", tok.location)
+                    _ => return error("expected semicolon or right brace", tok.location),
                 }
             } else {
                 break;
@@ -112,14 +115,15 @@ impl<'a> ParserState<'a> {
     fn parse_import(&mut self) -> anyhow::Result<Import> {
         let tok = self.get_next_token()?;
         match tok.value {
-            TokenValue::QVarId(_, _) | TokenValue::VarId(_) 
-                => Ok(Import::Var(Identifier::try_from(tok)?)),
+            TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
+                Ok(Import::Var(Identifier::try_from(tok)?))
+            }
             TokenValue::QConId(_, _) | TokenValue::ConId(_) => {
-                let id=Identifier::try_from(tok)?;
+                let id = Identifier::try_from(tok)?;
                 let spec = self.parse_exposed_spec()?;
-                Ok(Import::TypeOrClass(id, spec)) 
-            },
-            _ => error("Invalid import", tok.location)
+                Ok(Import::TypeOrClass(id, spec))
+            }
+            _ => error("Invalid import", tok.location),
         }
     }
 
@@ -133,7 +137,10 @@ impl<'a> ParserState<'a> {
                 mid.push_str(&s);
                 Ok(module(&mid))
             }
-            _ => error(&format!("Invalid module name token {:?}", mod_tok), mod_tok.location)
+            _ => error(
+                &format!("Invalid module name token {:?}", mod_tok),
+                mod_tok.location,
+            ),
         }
     }
 
@@ -145,7 +152,7 @@ impl<'a> ParserState<'a> {
                     self.get_next_token()?;
                     self.expect(TokenValue::RightParen)?;
                     Ok(ExposedSpec::All)
-                },
+                }
                 _ => {
                     self.rewind_lexer(1);
                     let cons = self.parse_paren_list(&mut Self::parse_cname)?;

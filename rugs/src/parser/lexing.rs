@@ -111,7 +111,7 @@ impl<'a> super::ParserState<'a> {
             let tok = match *c {
                 '\n' => {
                     self.indent = None;
-                    self.newlines.push(*p);
+                    self.metadata.newlines.push(*p);
                     self.next();
                     None
                 },
@@ -150,7 +150,7 @@ impl<'a> super::ParserState<'a> {
             };
 
             if let Some(tok) = tok {
-                let latest_newline = self.newlines.last().unwrap_or(&0);
+                let latest_newline = self.metadata.newlines.last().unwrap_or(&0);
                 let indent = self.token_start - latest_newline;
                 if self.layout_start {
                     self.layout_start = false;

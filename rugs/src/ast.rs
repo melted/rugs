@@ -13,6 +13,7 @@ pub struct Metadata {
     pub trivia : Vec<Annotation>,
     pub annotations : HashMap<NodeId, Annotation>,
     pub locations : HashMap<NodeId, Location>,
+    pub newlines : Vec<usize>
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,15 +43,16 @@ impl Metadata {
             file: None,
             trivia: Vec::new(),
             annotations: HashMap::new(),
-            locations: HashMap::new()
+            locations: HashMap::new(),
+            newlines: Vec::new()
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TopExpression {
-    metadata : Metadata,
-    expression : Expression
+    pub metadata : Metadata,
+    pub expression : Expression
 }
 
 #[derive(Debug, Clone, PartialEq)]

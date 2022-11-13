@@ -124,7 +124,16 @@ impl<'a> ParserState<'a> {
         Ok(output)
     }
 
-
+    fn parse_literal(&mut self) -> anyhow::Result<Const> {
+        let tok = self.get_next_token()?;
+        match tok.value {
+            TokenValue::Char(ch) => Ok(Const::Char(ch)),
+            TokenValue::Float(d) => Ok(Const::Float(d)),
+            TokenValue::Integer(bn) => Ok(Const::Integer(bn)),
+            TokenValue::String(s) => Ok(Const::String(s)),
+            _ => Err(self.error("expected a literal"))
+        }
+    }
 
     pub (super) fn optional_semicolon(&mut self) -> anyhow::Result<()> {
         self.optional_token(TokenValue::Semicolon)?;

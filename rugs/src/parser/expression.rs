@@ -23,39 +23,12 @@ impl<'a> ParserState<'a> {
             return Ok(self.app(negate, exp));
         }
         let exp = self.parse_lexp()?;
-        if let Some(op) = self.maybe_qop()? {
+        if let Some(op) = self.try_parse(&mut Self::parse_qop)? {
             let exp_right = self.parse_infix_expression()?;
             Ok(self.infix(op, exp, exp_right))
         } else {
             Ok(exp)
         }
-    }
-
-    fn maybe_qop(&mut self) -> anyhow::Result<Option<Identifier>> {
-        let op = match self.peek_next_token()?.value {
-            TokenValue::Colon => consym(":") ,
-            TokenValue::QConSym(module, con) => qconsym(&module, &con),
-            TokenValue::QVarSym(module, op) => qvarsym(&module, &op),
-            TokenValue::ConSym(con) => consym(&con),
-            TokenValue::VarSym(op) => varsym(&op),
-            TokenValue::Backtick => {
-                let backtick = self.get_next_token()?;
-                let op = match self.get_next_token()?.value {
-                    TokenValue::QVarId(module, var) =>
-                        qvarid(&module, &var),
-                    TokenValue::QConId(module, con) =>
-                        qconid(&module, &con),
-                    TokenValue::VarId(var) => varid(&var),
-                    TokenValue::ConId(con) => conid(&con),
-                    _ => return error("Expected identifier after backtick", backtick.location).into()
-                };
-                self.expect(TokenValue::Backtick)?;
-                return Ok(Some(op));
-            },
-            _ => return Ok(None)
-        };
-        self.get_next_token()?;
-        Ok(Some(op))
     }
 
     fn parse_lexp(&mut self) -> anyhow::Result<Expression> {
@@ -112,32 +85,12 @@ impl<'a> ParserState<'a> {
     }
 
     fn parse_fexp(&mut self) -> anyhow::Result<Expression> {
-        let mut aexps = Vec::new();
-        while self.is_aexp()? {
-            let exp = self.parse_aexp()?;
-            aexps.push(exp);
-        }
-        let mut exp = match aexps.pop() {
-            Some(e) => e,
-            None => {
-                return error("Expected aexp", Location::Offset { start: self.pos, end: self.pos });
-            }
-        };
-        while let Some(f) = aexps.pop() {
-            exp = self.app(f, exp);
+        let mut exp = self.parse_aexp()?;
+        let aexps = self.parse_some(&mut Self::parse_aexp)?;
+        for arg in aexps {
+            exp = self.app(exp, arg);
         }
         Ok(exp)
-    }
-
-    fn is_aexp(&mut self) -> anyhow::Result<bool> {
-        let tok = self.peek_next_token()?;
-        match tok.value {
-            TokenValue::LeftParen | TokenValue::LeftBracket | TokenValue::ConId(_)
-            | TokenValue::QConId(_, _) | TokenValue::QVarId(_, _) | TokenValue::VarId(_)
-            | TokenValue::Char(_) | TokenValue::Integer(_) | TokenValue::Float(_)
-            | TokenValue::String(_) => Ok(true),
-            _ => Ok(false)
-        }
     }
 
     fn parse_aexp(&mut self) -> anyhow::Result<Expression> {
@@ -206,4 +159,5 @@ impl<'a> ParserState<'a> {
     fn parse_case_alt(&mut self, is_virtual : bool) -> anyhow::Result<CaseAlt> {
         unimplemented!()
     }
+
 }

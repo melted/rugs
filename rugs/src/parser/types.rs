@@ -5,7 +5,7 @@ use super::{ParserState, lexing::{TokenValue, Token}, declaration::DeclKind};
 impl<'a> ParserState<'a> {
     pub (super) fn parse_class(&mut self) -> anyhow::Result<Class> {
         self.expect(TokenValue::Class)?;
-        let context = self.try_parse(&mut Self::parse_scontext)?
+        let context = self.try_parse(&mut |this| this.parse_context(true))?
                                     .unwrap_or_else(|| self.new_context());
         let name = self.parse_conid()?;
         let var = self.parse_varid()?;
@@ -201,7 +201,7 @@ impl<'a> ParserState<'a> {
 
     pub (super) fn parse_instance(&mut self) -> anyhow::Result<Instance> {
         self.expect(TokenValue::Instance)?;
-        let context = self.try_parse(&mut Self::parse_scontext)?
+        let context = self.try_parse(&mut |this| this.parse_context(true))?
                                     .unwrap_or_else(|| self.new_context());
         let qtycls = self.parse_qconid()?;
         let t = if self.is_next(TokenValue::LeftParen)? {
@@ -306,15 +306,27 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub (super) fn parse_context(&mut self) -> anyhow::Result<Context> {
-        unimplemented!()
+    pub (super) fn parse_context(&mut self, simple:bool) -> anyhow::Result<Context> {
+        if self.is_next(TokenValue::LeftParen)? {
+            let classes = self.parse_separated_by(&mut |this| this.parse_context_class(simple) ,TokenValue::Comma)?;
+            self.expect(TokenValue::RightParen)?;
+            self.expect(TokenValue::DoubleArrow)?;
+            Ok(Context { classes: classes })
+        } else {
+            let class = self.parse_context_class(simple)?;
+            self.expect(TokenValue::DoubleArrow)?;
+            Ok(Context { classes: vec![class] })
+        }
     }
 
-    pub (super) fn parse_context_class(&mut self) -> anyhow::Result<Context> {
-        unimplemented!()
-    }
-
-    pub (super) fn parse_scontext(&mut self) -> anyhow::Result<Context> {
-        unimplemented!()
+    pub (super) fn parse_context_class(&mut self, simple:bool) -> anyhow::Result<(Identifier, Vec<Type>)> {
+        let tycls = self.parse_qconid()?;
+        let args = if !simple && self.is_next(TokenValue::LeftParen)? {
+            self.parse_some(&mut Self::parse_atype)?
+        } else {
+            let arg = self.parse_varid()?;
+            vec![Type::var(arg)]
+        };
+        Ok((tycls, args))
     }
 }

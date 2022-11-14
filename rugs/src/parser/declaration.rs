@@ -4,7 +4,8 @@ use super::{
     ParserState,
 };
 use crate::ast::*;
-
+ 
+#[derive(Debug, Clone, PartialEq)]
 pub enum DeclKind {
     Instance,
     Class,
@@ -45,18 +46,109 @@ impl<'a> ParserState<'a> {
     }
 
     pub(super) fn parse_declaration(&mut self, decl_kind: DeclKind) -> anyhow::Result<Declaration> {
-        unimplemented!()
+        if decl_kind != DeclKind::Instance {
+            if let Some(decl) = self.try_parse(&mut Self::parse_type_signature)? {
+                return Ok(decl);
+            } 
+            if let Some(decl) = self.try_parse(&mut Self::parse_fixity_declaration)? {
+                return Ok(decl);
+            }
+        }
+        if let Some(fun) = self.try_parse(&mut Self::parse_function_lhs)? {
+            let bind = self.parse_function_rhs()?;
+            Ok(self.new_declaration(DeclarationValue::FunBind(fun, bind)))
+        } else {
+            if decl_kind == DeclKind::Normal {
+                let pat = self.parse_pattern()?;
+                let bind = self.parse_function_rhs()?;
+                Ok(self.new_declaration(DeclarationValue::PatBind(pat, bind)))
+            } else {
+                let var = self.parse_var()?;
+                let bind = self.parse_function_rhs()?;
+                Ok(self.new_declaration(DeclarationValue::VarBind(var, bind)))
+            }
+        }
     }
 
-    pub(super) fn parse_default_declaration(&mut self) -> anyhow::Result<Vec<Type>> {
-        unimplemented!()
+    pub (super) fn parse_function_lhs(&mut self) -> anyhow::Result<FunBind> {
+        if let Some(fun) = self.try_parse(&mut Self::parse_function_prefix)? {
+            Ok(fun)
+        } else if let Some(fun) = self.try_parse(&mut Self::parse_function_infix)? {
+            Ok(fun)
+        } else if let Some(fun) = self.try_parse(&mut Self::parse_function_wrapped)? {
+            Ok(fun)
+        } else {
+            Err(self.error("Bad function definition lhs"))
+        }
     }
 
-    pub(super) fn parse_type_signature(&mut self) -> anyhow::Result<Vec<Declaration>> {
-        unimplemented!()
+    pub (super) fn parse_function_prefix(&mut self) -> anyhow::Result<FunBind> {
+        let var = self.parse_var()?;
+        let pats = self.parse_some1(&mut Self::parse_apattern)?;
+        Ok(FunBind::Plain(var, pats))
     }
 
-    pub(super) fn parse_fixity_declaration(&mut self) -> anyhow::Result<Vec<Declaration>> {
+    pub (super) fn parse_function_infix(&mut self) -> anyhow::Result<FunBind> {
+        let lhs = self.parse_pattern()?;
+        let op = self.parse_varop()?;
+        let rhs = self.parse_pattern()?;
+        Ok(FunBind::Op(op, lhs, rhs))
+    }
+
+    pub (super) fn parse_function_wrapped(&mut self) -> anyhow::Result<FunBind> {
+        self.expect(TokenValue::LeftParen)?;
+        let fun = self.parse_function_lhs()?;
+        self.expect(TokenValue::RightParen)?;
+        let pats = self.parse_some1(&mut Self::parse_apattern)?;
+        Ok(FunBind::Wrapped(Box::new(fun), pats))
+    }
+
+    pub (super) fn parse_function_rhs(&mut self) -> anyhow::Result<Binding> {
+        if self.is_next(TokenValue::Equals)? {
+            let exp = self.parse_expression()?;
+            let where_decls = self.parse_optional_where()?;
+            Ok(Binding::Plain(exp, where_decls))
+        } else {
+            let rhs = self.parse_some1(&mut Self::parse_function_rhs_guarded)?;
+            let where_decls = self.parse_optional_where()?;
+            Ok(Binding::Guarded(rhs, where_decls))
+        }
+    }
+
+    pub (super) fn parse_optional_where(&mut self) -> anyhow::Result<Vec<Declaration>> {
+        if self.is_next(TokenValue::Where)? {
+            self.parse_some1(&mut |this| this.parse_declaration(DeclKind::Normal))
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    pub (super) fn parse_function_rhs_guarded(&mut self) -> anyhow::Result<GuardedExpression> {
+        let guards = self.parse_guards()?;
+        self.expect(TokenValue::Equals)?;
+        let exp = self.parse_expression()?;
+        Ok(GuardedExpression { guards: guards, body: exp })
+    }
+
+    pub (super) fn parse_guards(&mut self) -> anyhow::Result<Vec<SeqSyntax>> {
+        self.expect(TokenValue::Bar)?;
+        self.parse_separated_by(&mut |this| this.parse_seqsyntax(SeqKind::Guard), TokenValue::Comma)
+    }
+
+    pub (super) fn parse_default_declaration(&mut self) -> anyhow::Result<Vec<Type>> {
+        self.expect(TokenValue::Default)?;
+        self.parse_paren_list(&mut Self::parse_type)
+    }
+
+    pub (super) fn parse_type_signature(&mut self) -> anyhow::Result<Declaration> {
+        let vars = self.parse_separated_by(&mut Self::parse_var, TokenValue::Comma)?;
+        self.expect(TokenValue::DoubleColon)?;
+        let context = self.try_parse(&mut |this| this.parse_context(false))?;
+        let ty = self.parse_type()?;
+        Ok(self.new_declaration(DeclarationValue::TypeSignature(vars, context, ty)))
+    }
+
+    pub(super) fn parse_fixity_declaration(&mut self) -> anyhow::Result<Declaration> {
         let assoc = match self.get_next_token()?.value {
             TokenValue::Infix => Association::NonAssociative,
             TokenValue::Infixl => Association::Left,
@@ -74,10 +166,6 @@ impl<'a> ParserState<'a> {
             _ => 9,
         };
         let ops = self.parse_separated_by(&mut Self::parse_op, TokenValue::Comma)?;
-        let output = ops
-            .into_iter()
-            .map(|var| self.new_declaration(DeclarationValue::Fixity(var, assoc, prec)))
-            .collect();
-        Ok(output)
+        Ok(self.new_declaration(DeclarationValue::Fixity(ops, assoc, prec)))
     }
 }

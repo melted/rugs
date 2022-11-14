@@ -72,6 +72,19 @@ impl<'a> ParserState<'a> {
         Ok(output)
     }
 
+    pub(super) fn parse_some1<T>(
+        &mut self,
+        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
+    ) -> anyhow::Result<Vec<T>> {
+        let mut output = Vec::new();
+        let first = inner_parser(self)?;
+        output.push(first);
+        while let Some(res) = self.try_parse(inner_parser)? {
+            output.push(res);
+        }
+        Ok(output)
+    }
+
     pub(super) fn parse_first_of<T>(
         &mut self,
         parsers: Vec<&mut impl FnMut(&mut Self) -> anyhow::Result<T>>,
@@ -87,20 +100,27 @@ impl<'a> ParserState<'a> {
     pub(super) fn parse_unit(&mut self) -> anyhow::Result<Identifier> {
         self.expect(TokenValue::LeftParen)?;
         self.expect(TokenValue::RightParen)?;
-        Ok(consym("()"))
+        Ok(conid("()"))
     }
 
     pub(super) fn parse_empty_list(&mut self) -> anyhow::Result<Identifier> {
         self.expect(TokenValue::LeftBracket)?;
         self.expect(TokenValue::RightBracket)?;
-        Ok(consym("[]"))
+        Ok(conid("[]"))
     }
 
     pub(super) fn parse_funcon(&mut self) -> anyhow::Result<Identifier> {
         self.expect(TokenValue::LeftParen)?;
         self.expect(TokenValue::RightArrow)?;
         self.expect(TokenValue::RightParen)?;
-        Ok(consym("(->)"))
+        Ok(conid("(->)"))
+    }
+
+    pub(super) fn parse_import_all(&mut self) -> anyhow::Result<()> {
+        self.expect(TokenValue::LeftParen)?;
+        self.expect(TokenValue::DotDot)?;
+        self.expect(TokenValue::RightParen)?;
+        Ok(())
     }
 
     pub(super) fn parse_tuplecon(&mut self) -> anyhow::Result<Identifier> {
@@ -112,7 +132,7 @@ impl<'a> ParserState<'a> {
         }
         self.expect(TokenValue::RightParen)?;
         str.push(')');
-        Ok(consym(&str))
+        Ok(conid(&str))
     }
 
     pub(super) fn parse_separated_by<T>(

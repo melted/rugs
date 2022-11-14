@@ -203,9 +203,10 @@ pub struct Declaration {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeclarationValue {
-    TypeDecl(Identifier, Context, Type),
-    Fixity(Identifier, Association, u32),
+    TypeSignature(Vec<Identifier>, Option<Context>, Type),
+    Fixity(Vec<Identifier>, Association, u32),
     VarBind(Identifier, Binding),
+    PatBind(Pattern, Binding),
     FunBind(FunBind, Binding),
 }
 
@@ -233,7 +234,7 @@ pub enum SeqSyntax {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Binding {
     Plain(Expression, Vec<Declaration>),
-    Guarded(Expression, Vec<GuardedExpression>, Vec<Declaration>),
+    Guarded(Vec<GuardedExpression>, Vec<Declaration>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -335,8 +336,8 @@ pub enum ExpressionValue {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GuardedExpression {
-    guards: Vec<SeqSyntax>,
-    body: Expression,
+    pub guards: Vec<SeqSyntax>,
+    pub body: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq)]

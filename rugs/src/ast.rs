@@ -361,16 +361,17 @@ impl PartialEq for Pattern {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PatternValue {
-    Var(String),
-    As(String, Pattern),
+    Var(Identifier),
+    As(Identifier, Pattern),
     Literal(Const),
-    Constructor(String, Vec<Pattern>),
-    InfixConstructor(String, Pattern, Pattern),
-    Labeled(String, Vec<(String, Pattern)>),
+    Constructor(Identifier, Vec<Pattern>),
+    InfixConstructor(Identifier, Pattern, Pattern),
+    Labeled(Identifier, Vec<(Identifier, Pattern)>),
     Wildcard,
     Tuple(Vec<Pattern>),
     List(Vec<Pattern>),
     Irrefutable(Pattern),
+    Wrapped(Pattern)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -402,6 +403,10 @@ pub trait AstMaker {
             id: self.next_id(),
             value: Box::new(value),
         }
+    }
+
+    fn pattern(&mut self, value:PatternValue) -> Pattern {
+        Pattern { id: self.next_id(), value: Box::new(value) }
     }
 
     fn new_import_decl(&mut self, name: Identifier) -> ImportDecl {

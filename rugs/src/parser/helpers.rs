@@ -74,7 +74,7 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_some1<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
+        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>
     ) -> anyhow::Result<Vec<T>> {
         let mut output = Vec::new();
         let first = inner_parser(self)?;
@@ -83,6 +83,14 @@ impl<'a> ParserState<'a> {
             output.push(res);
         }
         Ok(output)
+    }
+
+    pub (super) fn parse_none<T>(&mut self,
+        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>) -> anyhow::Result<()> {
+        match self.try_parse(inner_parser)? {
+            Some(_) => Err(self.error("Expected none")),
+            None => Ok(())
+        }
     }
 
     pub(super) fn parse_first_of<T>(

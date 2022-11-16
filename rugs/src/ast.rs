@@ -543,6 +543,14 @@ pub trait AstMaker {
         self.expr(ExpressionValue::Comprehension(exp, quals))
     }
 
+    fn record_constr(&mut self, name:Identifier, fields:Vec<(Identifier, Expression)>) -> Expression {
+        self.expr(ExpressionValue::LabeledCon(name, fields))
+    }
+
+    fn record_update(&mut self, exp:Expression, fields:Vec<(Identifier, Expression)>) -> Expression {
+        self.expr(ExpressionValue::LabeledUpdate(exp, fields))
+    }
+
     fn typed(&mut self, exp: Expression, c: Context, t: Type) -> Expression {
         self.expr(ExpressionValue::Typed(exp, c, t))
     }

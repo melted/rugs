@@ -56,6 +56,7 @@ impl<'a> ParserState<'a> {
 
     fn parse_aexp(&mut self) -> anyhow::Result<Expression> {
         let tok = self.get_next_token()?;
+        let tok2 = tok.clone();
         let expr = match tok.value {
             TokenValue::LeftParen => self.parse_parens_exp()?,
             TokenValue::LeftBracket => self.parse_bracket_exp()?,
@@ -69,9 +70,19 @@ impl<'a> ParserState<'a> {
             TokenValue::String(s) => self.string_const(&s),
             t => return error(&format!("unexpected token {:?} in aexp", t), tok.location),
         };
-        if self.is_next(TokenValue::LeftBrace)? {
-            // Record stuff
-            unimplemented!()
+        if self.peek_next(TokenValue::LeftBrace)? {
+            let rec_expr = self.parse_record_expression()?;
+            match tok2.value {
+                TokenValue::QConId(_, _) | TokenValue::ConId(_) => Ok(self.record_constr(Token::try_into(tok2)?, rec_expr)),
+                _ => {
+                    if rec_expr.is_empty() {
+                        Err(self.error("Empty record update"))
+                    } else {
+                        Ok(self.record_update(expr, rec_expr))
+                    }
+                }
+            }
+
         } else {
             Ok(expr)
         }
@@ -264,5 +275,16 @@ impl<'a> ParserState<'a> {
             let exp = expfn(self)?;
             Ok(SeqSyntax::Expr(exp))
         }
+    }
+
+    pub (super) fn parse_record_expression(&mut self) -> anyhow::Result< Vec<(Identifier, Expression)>> {
+        self.parse_separated_by(&mut Self::parse_record_field, TokenValue::Comma)
+    }
+
+    pub (super) fn parse_record_field(&mut self) -> anyhow::Result<(Identifier, Expression)> {
+        let var = self.parse_qvar()?;
+        self.expect(TokenValue::Equals)?;
+        let exp = self.parse_expression()?;
+        Ok((var, exp))
     }
 }

@@ -229,6 +229,7 @@ pub enum SeqSyntax {
     Pattern(Pattern, Expression),
     Decls(Vec<Declaration>),
     Expr(Expression),
+    Empty
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -343,7 +344,7 @@ pub struct GuardedExpression {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CaseAlt {
     Simple(Pattern, Expression),
-    Guarded(Pattern, GuardedExpression),
+    Guarded(Pattern, Vec<GuardedExpression>),
 }
 
 #[derive(Debug, Clone)]
@@ -484,6 +485,14 @@ pub trait AstMaker {
         self.expr(ExpressionValue::App(f, arg))
     }
 
+    fn apps(&mut self, f:Expression, args:Vec<Expression>) -> Expression {
+        let mut exp = f;
+        for a in args {
+            exp = self.app(exp, a);
+        }
+        exp
+    }
+
     fn infix(&mut self, op: Identifier, left: Expression, right: Expression) -> Expression {
         self.expr(ExpressionValue::Infix(op, left, right))
     }
@@ -513,7 +522,12 @@ pub trait AstMaker {
     }
 
     fn list(&mut self, fields: Vec<Expression>) -> Expression {
-        self.expr(ExpressionValue::Tuple(fields))
+        self.expr(ExpressionValue::List(fields))
+    }
+
+    
+    fn do_expression(&mut self, stmts: Vec<SeqSyntax>) -> Expression {
+        self.expr(ExpressionValue::Do(stmts))
     }
 
     fn if_expression(
@@ -523,6 +537,10 @@ pub trait AstMaker {
         else_exp: Expression,
     ) -> Expression {
         self.expr(ExpressionValue::If(predicate, then_exp, else_exp))
+    }
+
+    fn comprehension(&mut self, exp: Expression, quals: Vec<SeqSyntax>) -> Expression {
+        self.expr(ExpressionValue::Comprehension(exp, quals))
     }
 
     fn typed(&mut self, exp: Expression, c: Context, t: Type) -> Expression {

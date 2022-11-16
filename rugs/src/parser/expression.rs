@@ -174,18 +174,95 @@ impl<'a> ParserState<'a> {
     }
 
     fn parse_do_expression(&mut self) -> anyhow::Result<Expression> {
-        unimplemented!()
+        self.expect(TokenValue::Do)?;
+        let stmts = self.parse_braced_list(&mut |this, _| this.parse_seqsyntax(SeqKind::Do))?;
+        Ok(self.do_expression(stmts))
     }
 
     fn parse_bracket_exp(&mut self) -> anyhow::Result<Expression> {
-        unimplemented!()
+        if let Some((start, step)) = self.try_parse(&mut |this| {
+            let first = this.parse_expression()?;
+            let step = if this.is_next(TokenValue::Comma)? {
+                Some(this.parse_expression()?)
+            } else {
+                None
+            };
+            this.expect(TokenValue::DotDot)?;
+            Ok((first, step))
+        })? {
+            let stop = self.try_parse(&mut Self::parse_expression)?;
+            self.expect(TokenValue::RightBracket)?;
+            match (step, stop) {
+                (Some (a), Some(b)) => {
+                    let f = self.var(varid("enumFromThenTo"));
+                    Ok(self.apps(f, vec![start, a, b]))
+                },
+                (Some (a), None) => {
+                    let f = self.var(varid("enumFromThen"));
+                    Ok(self.apps(f, vec![start, a]))
+                },
+                (None, Some (b)) => {
+                    let f = self.var(varid("enumFromTo"));
+                    Ok(self.apps(f, vec![start, b]))
+                },
+                (None, None) => {
+                    let f = self.var(varid("enumFrom"));
+                    Ok(self.app(f, start))
+                }
+            }
+        } else if let Some(exp) = self.try_parse(&mut |this| {
+            let first = this.parse_expression()?;
+            this.expect(TokenValue::Bar)?;
+            Ok(first)
+        })? {
+            let quals = self.parse_separated_by(&mut |this| this.parse_seqsyntax(SeqKind::Comprehension), TokenValue::Comma)?;
+            Ok(self.comprehension(exp, quals))
+        } else {
+            let exps = self.parse_separated_by(&mut Self::parse_expression, TokenValue::Comma)?;
+            self.expect(TokenValue::RightBracket)?;
+            Ok(self.list(exps))
+        }
     }
 
     fn parse_case_alt(&mut self, is_virtual: bool) -> anyhow::Result<CaseAlt> {
-        unimplemented!()
+        let pat = self.parse_pattern()?;
+        if self.is_next(TokenValue::RightArrow)? {
+            let exp = self.parse_expression()?;
+            Ok(CaseAlt::Simple(pat, exp))
+        } else {
+            let guardexps = self.parse_some1(&mut Self::parse_case_guarded)?;
+            Ok(CaseAlt::Guarded(pat, guardexps))
+        }  
+    }
+
+    pub (super) fn parse_case_guarded(&mut self) -> anyhow::Result<GuardedExpression> {
+        let guards = self.parse_guards()?;
+        self.expect(TokenValue::RightArrow)?;
+        let exp = self.parse_expression()?;
+        Ok(GuardedExpression { guards: guards, body: exp })
     }
 
     pub (super) fn parse_seqsyntax(&mut self, kind: SeqKind) -> anyhow::Result<SeqSyntax> {
-        unimplemented!()
+        let expfn = if kind == SeqKind::Guard {
+            |this:&mut ParserState| this.parse_infix_expression()
+        } else {
+            |this:&mut ParserState| this.parse_expression()
+        };
+        if self.is_next(TokenValue::Let)? {
+            let decls = self.parse_braced_list(&mut |this,_| this.parse_declaration(DeclKind::Normal))?;
+            Ok(SeqSyntax::Decls(decls))
+        } else if let Some(pat) = self.try_parse(&mut |this|{
+            let pat = this.parse_pattern()?;
+            this.expect(TokenValue::LeftArrow)?;
+            Ok(pat)
+        })? {
+            let exp = expfn(self)?;
+            Ok(SeqSyntax::Pattern(pat, exp))
+        } else if kind == SeqKind::Do && self.is_next(TokenValue::Semicolon)? || self.is_next(TokenValue::VirtualSemicolon)? {
+                Ok(SeqSyntax::Empty)
+        } else {
+            let exp = expfn(self)?;
+            Ok(SeqSyntax::Expr(exp))
+        }
     }
 }

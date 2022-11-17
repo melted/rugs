@@ -269,7 +269,7 @@ impl<'a> ParserState<'a> {
         })? {
             let exp = expfn(self)?;
             Ok(SeqSyntax::Pattern(pat, exp))
-        } else if kind == SeqKind::Do && self.is_next(TokenValue::Semicolon)? || self.is_next(TokenValue::VirtualSemicolon)? {
+        } else if kind == SeqKind::Do && self.is_next(TokenValue::Semicolon)? {
                 Ok(SeqSyntax::Empty)
         } else {
             let exp = expfn(self)?;

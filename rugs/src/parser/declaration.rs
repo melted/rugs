@@ -16,14 +16,15 @@ impl<'a> ParserState<'a> {
     pub(super) fn parse_top_declarations(&mut self) -> anyhow::Result<Vec<TopDeclaration>> {
         let mut decls = Vec::new();
         loop {
-            decls.push(self.parse_top_declaration()?);
+            let decl = self.parse_top_declaration()?;
+            decls.push(decl);
             let tok = self.peek_next_token()?;
             match tok.value {
                 TokenValue::Semicolon => {
                     self.get_next_token()?;
                 }
                 TokenValue::RightBrace | TokenValue::VirtualRightBrace => break,
-                _ => return error("expected semicolon or right brace", tok.location),
+                t => return error(&format!("expected semicolon or right brace, got {:?}", t), tok.location),
             }
         }
         Ok(decls)

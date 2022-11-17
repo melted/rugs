@@ -27,6 +27,7 @@ pub fn parse(file_name: Option<&str>, code: &str) -> anyhow::Result<Module> {
 
 pub fn parse_expression(expr: &str) -> anyhow::Result<TopExpression> {
     let mut state = ParserState::new(expr);
+    state.layout_start = false;
     let exp = state.parse_expression()?;
     Ok(TopExpression {
         metadata: state.metadata,
@@ -47,14 +48,26 @@ pub fn dump_tokens(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn dump_ast(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
+    let module = parse(None, code)?;
+    writeln!(output, "{:?}", module)?;
+    Ok(())
+}
+
+pub fn dump_ast_expression(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
+    let exp = parse_expression(code)?;
+    writeln!(output, "{:?}", exp)?;
+    Ok(())
+}
+
 #[derive(Debug)]
 pub(self) struct ParserState<'a> {
     metadata: Metadata,
     src: &'a str,
     chars: Peekable<CharIndices<'a>>,
     queue: VecDeque<Token>,
-    pushed_back: VecDeque<Token>,
-    consumed_tokens: Vec<Token>,
+    tokens: Vec<Token>,
+    token_pos: usize,
     pos: usize,
     token_start: usize,
     layout_stack: Vec<usize>,
@@ -70,11 +83,11 @@ impl<'a> ParserState<'a> {
             src: code,
             chars: code.char_indices().peekable(),
             queue: VecDeque::new(),
-            pushed_back: VecDeque::new(),
-            consumed_tokens: Vec::new(),
+            tokens: Vec::new(),
+            token_pos: 0,
             pos: 0,
             token_start: 0,
-            layout_stack: Vec::new(),
+            layout_stack: vec![],
             layout_start: true,
             indent: None,
             counter: 0,
@@ -82,6 +95,7 @@ impl<'a> ParserState<'a> {
     }
 
     pub(self) fn error(&self, msg: &str) -> anyhow::Error {
+        //println!("{}", std::backtrace::Backtrace::capture());
         RugsError::Parse {
             msg: msg.to_string(),
             loc: Location::Offset {

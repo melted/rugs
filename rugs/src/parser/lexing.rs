@@ -1,3 +1,5 @@
+use std::cmp::{min, max};
+
 use super::{helpers::error, ParserState};
 use crate::{
     ast::{conid, consym, qconid, qconsym, qvarid, qvarsym, varid, varsym, Identifier},
@@ -9,77 +11,52 @@ use num_traits::Num;
 
 impl<'a> super::ParserState<'a> {
     pub(super) fn get_next_token(&mut self) -> anyhow::Result<Token> {
-        let token = if let Some(tok) = self.pushed_back.pop_front() {
-            tok
-        } else {
-            let tok = self.next_token()?;
-            self.check_layout_start(&tok);
-            self.layout(tok)?
-        };
-        self.consumed_tokens.push(token.clone());
-        Ok(token)
+        let tok = self.peek_next_token()?;
+        self.token_pos += 1;
+        Ok(tok)
     }
 
     pub(super) fn peek_next_token(&mut self) -> anyhow::Result<Token> {
-        let token = if let Some(tok) = self.pushed_back.pop_front() {
-            tok
-        } else {
+        assert!(self.token_pos <= self.tokens.len());
+        while self.token_pos == self.tokens.len() {
             let tok = self.next_token()?;
-            self.check_layout_start(&tok);
-            self.layout(tok)?
-        };
-        self.pushed_back.push_front(token.clone());
-        Ok(token)
+            self.layout(tok)?;
+        }
+        Ok(self.tokens[self.token_pos].clone())
     }
 
     pub(super) fn push_token(&mut self, token: Token) {
-        self.pushed_back.push_front(token)
+        self.tokens.insert(self.token_pos, token);
     }
 
     pub(super) fn rewind_lexer(&mut self, n: usize) {
-        for _ in 0..n {
-            if let Some(tok) = self.consumed_tokens.pop() {
-                self.pushed_back.push_front(tok);
-            } else {
-                break;
-            }
-        }
+        self.token_pos -= max(self.token_pos, n);
     }
 
-    fn check_layout_start(&mut self, tok: &Token) {
+    fn layout(&mut self, tok: Token) -> anyhow::Result<()> {
         match tok.value {
             TokenValue::Let | TokenValue::Where | TokenValue::Do | TokenValue::Of => {
                 self.layout_start = true;
+                self.tokens.push(tok);
             }
-            _ => (),
-        }
-    }
-
-    fn layout(&mut self, tok: Token) -> anyhow::Result<Token> {
-        match tok.value {
             TokenValue::StartLayout(n) => {
+                self.tokens.push(Token::new(TokenValue::VirtualLeftBrace));
                 let m = self.layout_stack.last().unwrap_or(&0);
                 if n > *m {
                     self.layout_stack.push(n);
                 } else {
-                    let token = Token::new(TokenValue::VirtualRightBrace);
-                    self.queue.push_back(token);
+                    self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
                 }
-                return Ok(Token::new(TokenValue::VirtualLeftBrace));
             }
             TokenValue::Indent(n) => {
                 let m = self.layout_stack.last().unwrap_or(&0);
                 if *m == n {
-                    return Ok(Token::new(TokenValue::VirtualSemicolon));
+                    self.tokens.push(Token::new(TokenValue::Semicolon));
                 } else if n < *m {
                     while self.layout_stack.last().map_or(false, |m| n < *m) {
                         self.layout_stack.pop();
-                        let token = Token::new(TokenValue::VirtualRightBrace);
-                        self.queue.push_back(token);
+                        self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
                     }
-                    return Ok(self.queue.pop_front().unwrap()); // YOLO
-                } else {
-                    return self.get_next_token(); // Recursing should be fine as tailcall
                 }
             }
             TokenValue::LeftBrace => {
@@ -97,20 +74,18 @@ impl<'a> super::ParserState<'a> {
                 }
             }
             TokenValue::Eof => {
-                self.queue.push_back(tok);
                 for n in &self.layout_stack {
                     if *n == 0 {
                         return self.lex_error("Unterminated explicit left brace");
                     }
-                    self.queue
-                        .push_front(Token::new(TokenValue::VirtualRightBrace));
+                    self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
                 }
+                self.tokens.push(tok);
                 self.layout_stack.clear();
-                return Ok(self.queue.pop_front().unwrap());
             }
-            _ => {}
+            _ => self.tokens.push(tok)
         }
-        Ok(tok)
+        Ok(())
     }
 
     fn next_token(&mut self) -> anyhow::Result<Token> {
@@ -309,22 +284,24 @@ impl<'a> super::ParserState<'a> {
             return Ok(self.token(TokenValue::Integer(bigint)));
         }
         let mut stop = self.snarf(char::is_ascii_digit)?;
-        let mut next = self.peek()?;
-        if next == '.' || next == 'e' || next == 'E' {
-            if next == '.' {
-                self.advance(1);
-                stop = self.snarf(char::is_ascii_digit)?;
-                next = self.peek()?
-            }
-            if next == 'e' || next == 'E' {
-                self.advance(1);
-                let sign = self.peek()?;
-                if sign == '+' || sign == '-' {
+        let res = self.peek();
+        if let Ok(mut next) = res {
+            if next == '.' || next == 'e' || next == 'E' {
+                if next == '.' {
                     self.advance(1);
+                    stop = self.snarf(char::is_ascii_digit)?;
+                    next = self.peek()?
                 }
-                stop = self.snarf(char::is_ascii_digit)?;
+                if next == 'e' || next == 'E' {
+                    self.advance(1);
+                    let sign = self.peek()?;
+                    if sign == '+' || sign == '-' {
+                        self.advance(1);
+                    }
+                    stop = self.snarf(char::is_ascii_digit)?;
+                }
+                return Ok(self.token(TokenValue::Float(self.src[self.token_start..stop].parse()?)));
             }
-            return Ok(self.token(TokenValue::Float(self.src[self.token_start..stop].parse()?)));
         }
         let bigint = BigInt::from_str_radix(&self.src[self.token_start..stop], 10)?;
         Ok(self.token(TokenValue::Integer(bigint)))
@@ -411,7 +388,10 @@ impl<'a> super::ParserState<'a> {
             "infixr" => Ok(self.token(TokenValue::Infixr)),
             "instance" => Ok(self.token(TokenValue::Instance)),
             "let" => Ok(self.token(TokenValue::Let)),
-            "module" => Ok(self.token(TokenValue::Module)),
+            "module" => {
+                self.layout_start = false;
+                Ok(self.token(TokenValue::Module))
+            },
             "newtype" => Ok(self.token(TokenValue::Newtype)),
             "of" => Ok(self.token(TokenValue::Of)),
             "then" => Ok(self.token(TokenValue::Then)),
@@ -519,6 +499,12 @@ impl<'a> super::ParserState<'a> {
         let item = self.chars.next();
         if let Some((p, _)) = self.chars.peek() {
             self.pos = *p;
+        } else {
+            self.pos = if let Some((p, _)) = item {
+                p+1
+            } else {
+                self.pos
+            }
         }
         item
     }
@@ -570,7 +556,6 @@ pub enum TokenValue {
     RightParen,
     Comma,
     Semicolon,
-    VirtualSemicolon,
     LeftBracket,
     RightBracket,
     Backtick,

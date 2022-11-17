@@ -7,6 +7,14 @@ pub struct Args {
     #[arg(long)]
     pub dump_tokens: bool,
 
+    /// Dump the parser output
+    #[arg(long)]
+    pub dump_ast: bool,
+
+    /// The input is an Haskell expression 
+    #[arg(long, short='e')]
+    pub expression: bool,
+
     /// Input files
     pub file_names: Vec<String>,
 

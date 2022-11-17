@@ -9,7 +9,7 @@ impl<'a> ParserState<'a> {
     pub(super) fn expect(&mut self, t: TokenValue) -> anyhow::Result<()> {
         let next = self.get_next_token()?;
         if t != next.value {
-            error("expected {}, got {}", next.location) // TODO: Fix error location
+            error(&format!("expected {:?}, got {:?}", t, next.value), next.location) // TODO: Fix error location
         } else {
             Ok(())
         }
@@ -168,8 +168,7 @@ impl<'a> ParserState<'a> {
     }
 
     pub(super) fn optional_semicolon(&mut self) -> anyhow::Result<()> {
-        self.optional_token(TokenValue::Semicolon)?;
-        self.optional_token(TokenValue::VirtualSemicolon)
+        self.optional_token(TokenValue::Semicolon)
     }
 
     pub(super) fn parse_conid(&mut self) -> anyhow::Result<Identifier> {
@@ -273,12 +272,11 @@ impl<'a> ParserState<'a> {
         &mut self,
         inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
     ) -> anyhow::Result<Option<T>> {
-        let start = self.consumed_tokens.len();
+        let start = self.token_pos;
         match inner_parser(self) {
             Ok(res) => Ok(Some(res)),
             Err(_) => {
-                let tokens_used = self.consumed_tokens.len() - start;
-                self.rewind_lexer(tokens_used);
+                self.token_pos = start;
                 Ok(None)
             }
         }
@@ -303,7 +301,7 @@ impl<'a> ParserState<'a> {
                 output.push(res);
                 let tok = self.get_next_token()?;
                 match tok.value {
-                    TokenValue::Semicolon | TokenValue::VirtualSemicolon => {}
+                    TokenValue::Semicolon => {}
                     TokenValue::RightBrace if !is_virtual => break,
                     TokenValue::VirtualRightBrace if is_virtual => break,
                     _ => return error("Unexpected token in let", tok.location),
@@ -458,7 +456,7 @@ impl<'a> ParserState<'a> {
         } else if let Some(res) = self.try_parse(&mut Self::parse_tuplecon)? {
             Ok(res)
         } else {
-            self.parse_qcon().map_err(|_| self.error("Not a gcon"))
+            self.parse_qcon()
         }
     }
 }

@@ -1,4 +1,4 @@
-use std::cmp::{min, max};
+use std::cmp::min;
 
 use super::{helpers::error, ParserState};
 use crate::{
@@ -49,13 +49,16 @@ impl<'a> super::ParserState<'a> {
                 }
             }
             TokenValue::Indent(n) => {
-                let m = self.layout_stack.last().unwrap_or(&0);
-                if *m == n {
-                    self.tokens.push(Token::new(TokenValue::Semicolon));
-                } else if n < *m {
-                    while self.layout_stack.last().map_or(false, |m| n < *m) {
+                loop {
+                    let m = self.layout_stack.last().unwrap_or(&0);
+                    if n < *m {
                         self.layout_stack.pop();
                         self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
+                    } else {
+                        if n == *m {
+                            self.tokens.push(Token::new(TokenValue::Semicolon));
+                        }
+                        break;
                     }
                 }
             }

@@ -304,7 +304,7 @@ impl<'a> ParserState<'a> {
                     TokenValue::Semicolon => {}
                     TokenValue::RightBrace if !is_virtual => break,
                     TokenValue::VirtualRightBrace if is_virtual => break,
-                    _ => return error("Unexpected token in let", tok.location),
+                    _ => return error("Unexpected token in braced list", tok.location),
                 }
             }
         }

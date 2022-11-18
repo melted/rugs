@@ -38,6 +38,14 @@ impl<'a> super::ParserState<'a> {
             TokenValue::Let | TokenValue::Where | TokenValue::Do | TokenValue::Of => {
                 self.layout_start = true;
                 self.tokens.push(tok);
+            },
+            TokenValue::In => {
+                let previous = &self.tokens[self.token_pos-1].value;
+                if previous != &TokenValue::RightBrace && previous != &TokenValue::VirtualRightBrace {
+                    self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
+                    self.tokens.push(tok);
+                    self.layout_stack.pop();
+                }
             }
             TokenValue::StartLayout(n) => {
                 self.tokens.push(Token::new(TokenValue::VirtualLeftBrace));

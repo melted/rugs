@@ -153,9 +153,6 @@ impl<'a> ParserState<'a> {
         self.expect(TokenValue::Let)?;
         let decls = self.parse_braced_list(&mut |this, is_virtual| {
             let res = this.parse_declaration(DeclKind::Normal)?;
-            if is_virtual && this.is_next(TokenValue::In)? {
-                this.push_token(TokenValue::VirtualRightBrace.into());
-            }
             Ok(res)
         })?;
         let exp = self.parse_expression()?;

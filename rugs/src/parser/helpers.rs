@@ -275,7 +275,7 @@ impl<'a> ParserState<'a> {
         let start = self.token_pos;
         match inner_parser(self) {
             Ok(res) => Ok(Some(res)),
-            Err(_) => {
+            Err(err) => {
                 self.token_pos = start;
                 Ok(None)
             }

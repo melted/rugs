@@ -58,6 +58,7 @@ impl<'a> ParserState<'a> {
             TokenValue::Integer(bn) => Ok(self.pattern(PatternValue::Literal(Const::Integer(bn)))),
             TokenValue::String(s) => Ok(self.pattern(PatternValue::Literal(Const::String(s)))),
             _ => {
+                self.rewind_lexer(1);
                 if let Some(v) = self.try_parse(&mut Self::parse_var)? {
                     if self.is_next(TokenValue::At)? {
                         let aspat = self.parse_apattern()?;

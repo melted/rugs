@@ -30,7 +30,7 @@ impl<'a> super::ParserState<'a> {
     }
 
     pub(super) fn rewind_lexer(&mut self, n: usize) {
-        self.token_pos -= max(self.token_pos, n);
+        self.token_pos -= min(self.token_pos, n);
     }
 
     fn layout(&mut self, tok: Token) -> anyhow::Result<()> {

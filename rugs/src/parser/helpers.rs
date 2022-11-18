@@ -334,38 +334,42 @@ impl<'a> ParserState<'a> {
     }
 
     pub(super) fn parse_var(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_varid)? {
-            Ok(res)
+        if self.is_next(TokenValue::LeftParen)? {
+            let sym = self.parse_varsym()?;
+            self.expect(TokenValue::RightParen)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_parens(&mut Self::parse_varsym)
-                .map_err(|_| self.error("expected identifier"))
+            self.parse_varid()
         }
     }
 
     pub(super) fn parse_qvar(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_qvarid)? {
-            Ok(res)
+        if self.is_next(TokenValue::LeftParen)? {
+            let sym = self.parse_qvarsym()?;
+            self.expect(TokenValue::RightParen)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_parens(&mut Self::parse_qvarsym)
-                .map_err(|_| self.error("expected qualified identifier"))
+            self.parse_qvarid()
         }
     }
 
     pub(super) fn parse_con(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_conid)? {
-            Ok(res)
+        if self.is_next(TokenValue::LeftParen)? {
+            let sym = self.parse_consym()?;
+            self.expect(TokenValue::RightParen)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_parens(&mut Self::parse_consym)
-                .map_err(|_| self.error("expected constructor"))
+            self.parse_conid()
         }
     }
 
     pub(super) fn parse_qcon(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_qconid)? {
-            Ok(res)
+        if self.is_next(TokenValue::LeftParen)? {
+            let sym = self.parse_gconsym()?;
+            self.expect(TokenValue::RightParen)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_parens(&mut Self::parse_gconsym)
-                .map_err(|_| self.error("expected qualified constructor"))
+            self.parse_qconid()
         }
     }
 
@@ -379,54 +383,42 @@ impl<'a> ParserState<'a> {
     }
 
     pub(super) fn parse_varop(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_qvarsym)? {
-            Ok(res)
+        if self.is_next(TokenValue::Backtick)? {
+            let sym = self.parse_varid()?;
+            self.expect(TokenValue::Backtick)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_by(
-                TokenValue::Backtick,
-                &mut Self::parse_varid,
-                TokenValue::Backtick,
-            )
-            .map_err(|_| self.error("expected operator"))
+            self.parse_varsym()
         }
     }
 
     pub(super) fn parse_qvarop(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_qvarsym)? {
-            Ok(res)
+        if self.is_next(TokenValue::Backtick)? {
+            let sym = self.parse_qvarid()?;
+            self.expect(TokenValue::Backtick)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_by(
-                TokenValue::Backtick,
-                &mut Self::parse_qvarid,
-                TokenValue::Backtick,
-            )
-            .map_err(|_| self.error("expected qualified operator"))
+            self.parse_qvarsym()
         }
     }
 
     pub(super) fn parse_conop(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_consym)? {
-            Ok(res)
+        if self.is_next(TokenValue::Backtick)? {
+            let sym = self.parse_conid()?;
+            self.expect(TokenValue::Backtick)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_by(
-                TokenValue::Backtick,
-                &mut Self::parse_con,
-                TokenValue::Backtick,
-            )
-            .map_err(|_| self.error("expected constructor operator"))
+            self.parse_consym()
         }
     }
 
     pub(super) fn parse_qconop(&mut self) -> anyhow::Result<Identifier> {
-        if let Some(res) = self.try_parse(&mut Self::parse_gconsym)? {
-            Ok(res)
+        if self.is_next(TokenValue::Backtick)? {
+            let sym = self.parse_qconid()?;
+            self.expect(TokenValue::Backtick)?;
+            Ok(sym)
         } else {
-            self.parse_surrounded_by(
-                TokenValue::Backtick,
-                &mut Self::parse_qcon,
-                TokenValue::Backtick,
-            )
-            .map_err(|_| self.error("expected qualified constructor operator"))
+            self.parse_gconsym()
         }
     }
 

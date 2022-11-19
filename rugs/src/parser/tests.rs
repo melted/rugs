@@ -66,6 +66,19 @@ fn parse_decl() {
 }
 
 #[test]
+fn parse_lambda() {
+    let res = parse(None, "lam = \\x -> x + 1");
+    assert!(res.is_ok());
+}
+
+#[test]
+fn parse_let() {
+    let res = parse(None, "mmmm = let y = x + 1 in f y");
+    dbg!(&res);
+    assert!(res.is_ok());
+}
+
+#[test]
 fn try_parse() {
     let mut parse_state = ParserState::new("ACon b c");
     let res = parse_state.try_parse(&mut |this| {

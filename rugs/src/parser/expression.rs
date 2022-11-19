@@ -155,6 +155,7 @@ impl<'a> ParserState<'a> {
             let res = this.parse_declaration(DeclKind::Normal)?;
             Ok(res)
         })?;
+        self.expect(TokenValue::In)?;
         let exp = self.parse_expression()?;
         Ok(self.let_expression(decls, exp))
     }

@@ -15,6 +15,11 @@ pub enum DeclKind {
 impl<'a> ParserState<'a> {
     pub(super) fn parse_top_declarations(&mut self) -> anyhow::Result<Vec<TopDeclaration>> {
         let mut decls = Vec::new();
+        let tok = self.peek_next_token()?;
+        match tok.value {
+            TokenValue::RightBrace | TokenValue::VirtualRightBrace => return Ok(decls),
+            t => {},
+        }
         loop {
             let decl = self.parse_top_declaration()?;
             decls.push(decl);

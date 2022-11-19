@@ -6,7 +6,7 @@ use super::{parse, ParserState, parse_expression};
 #[test]
 fn parse_empty_string() {
     let result = parse(None, "");
-    assert!(result.is_err(), "bah");
+    assert!(result.is_ok());
 }
 
 fn get_tokens(state: &mut ParserState) -> anyhow::Result<Vec<Token>> {
@@ -87,7 +87,7 @@ fn parse_if() {
 #[test]
 fn parse_case() {
     let res = parse(None, r#"a = case x of
-                                                                Some y -> 22
-                                                                None -> 33"#);
+                                                                Just y -> 22
+                                                                Nothing -> 33"#);
     assert!(res.is_ok());
 }

@@ -61,7 +61,6 @@ fn parse_simple_expression2() {
 #[test]
 fn parse_decl() {
     let res = parse(None, "main = print 42");
-    dbg!(&res);
     assert!(res.is_ok());
 }
 
@@ -74,7 +73,6 @@ fn parse_lambda() {
 #[test]
 fn parse_let() {
     let res = parse(None, "mmmm = let y = x + 1 in f y");
-    dbg!(&res);
     assert!(res.is_ok());
 }
 
@@ -91,3 +89,13 @@ fn parse_case() {
                                                                 Nothing -> 33"#);
     assert!(res.is_ok());
 }
+
+#[test]
+fn parse_data() {
+    let res = parse(None,
+                    r#"data Tree a = Node a (Tree a) (Tree a)
+                                           | Leaf a"#);
+    assert!(res.is_ok());
+}
+
+

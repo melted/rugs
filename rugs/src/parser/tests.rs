@@ -79,20 +79,15 @@ fn parse_let() {
 }
 
 #[test]
-fn try_parse() {
-    let mut parse_state = ParserState::new("ACon b c");
-    let res = parse_state.try_parse(&mut |this| {
-        let conid = this.parse_conid()?;
-        let var = this.parse_var()?;
-        Ok(conid)
-    });
-    dbg!(&parse_state);
+fn parse_if() {
+    let res = parse(None, "mmmm = if x then 1 else (7 + 8)");
+    assert!(res.is_ok());
 }
 
-
 #[test]
-fn try_parse2() {
-    let mut parse_state = ParserState::new("Abc 12 333 333 33 3 \n a b c D R");
-    let res = parse_state.parse_conid();
-    dbg!(&parse_state);
+fn parse_case() {
+    let res = parse(None, r#"a = case x of
+                                                                Some y -> 22
+                                                                None -> 33"#);
+    assert!(res.is_ok());
 }

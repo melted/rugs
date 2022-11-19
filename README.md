@@ -1,3 +1,5 @@
+## This is a work in progress and not close to being ready for use yet.
+
 # Rugs
 
 Rugs is a lightweight Haskell implementation inspired by Hugs. 

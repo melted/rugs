@@ -375,24 +375,9 @@ pub enum PatternValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Identifier {
-    Var {
-        module: Option<String>,
-        name: String,
-    },
-    Con {
-        module: Option<String>,
-        name: String,
-    },
-    Module(String),
-    Sym {
-        module: Option<String>,
-        name: String,
-    },
-    ConSym {
-        module: Option<String>,
-        name: String,
-    },
+pub struct Identifier {
+    module : Option<String>,
+    name : String
 }
 
 pub trait AstMaker {
@@ -578,63 +563,66 @@ pub trait AstMaker {
 }
 
 pub fn varid(name: &str) -> Identifier {
-    Identifier::Var {
+    Identifier {
         module: None,
         name: name.to_string(),
     }
 }
 
 pub fn conid(name: &str) -> Identifier {
-    Identifier::Con {
+    Identifier {
         module: None,
         name: name.to_string(),
     }
 }
 
 pub fn varsym(name: &str) -> Identifier {
-    Identifier::Sym {
+    Identifier {
         module: None,
         name: name.to_string(),
     }
 }
 
 pub fn consym(name: &str) -> Identifier {
-    Identifier::ConSym {
+    Identifier {
         module: None,
         name: name.to_string(),
     }
 }
 
 pub fn qvarid(module: &str, name: &str) -> Identifier {
-    Identifier::Var {
+    Identifier {
         module: Some(module.to_string()),
         name: name.to_string(),
     }
 }
 
 pub fn qconid(module: &str, name: &str) -> Identifier {
-    Identifier::Con {
+    Identifier {
         module: Some(module.to_string()),
         name: name.to_string(),
     }
 }
 
 pub fn qvarsym(module: &str, name: &str) -> Identifier {
-    Identifier::Sym {
+    Identifier {
         module: Some(module.to_string()),
         name: name.to_string(),
     }
 }
 
 pub fn qconsym(module: &str, name: &str) -> Identifier {
-    Identifier::ConSym {
+    Identifier {
         module: Some(module.to_string()),
         name: name.to_string(),
     }
 }
 
 pub fn module(module: &str) -> Identifier {
-    Identifier::Module(module.to_string())
+    Identifier {
+        module: Some(module.to_string()),
+        name: String::new()
+    }
 }
 
 trait AstVisitor {

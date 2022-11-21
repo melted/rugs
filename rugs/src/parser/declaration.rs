@@ -53,11 +53,22 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_declaration(&mut self, decl_kind: DeclKind) -> anyhow::Result<Declaration> {
         if decl_kind != DeclKind::Instance {
-            if let Some(decl) = self.try_parse(&mut Self::parse_type_signature)? {
-                return Ok(decl);
+            if let Some(vars) = self.try_parse(&mut |this| {
+                let vars = this.parse_separated_by(&mut Self::parse_var, TokenValue::Comma)?;
+                this.expect(TokenValue::DoubleColon)?;
+                Ok(vars)
+            })? {
+                let context = self.try_parse(&mut |this| this.parse_context(false))?;
+                let ty = self.parse_type()?;
+                return Ok(self.new_declaration(DeclarationValue::TypeSignature(vars, context, ty)));
             } 
-            if let Some(decl) = self.try_parse(&mut Self::parse_fixity_declaration)? {
-                return Ok(decl);
+            let infix = match self.peek_next_token()?.value {
+                TokenValue::Infix | TokenValue::Infixl |
+                TokenValue::Infixr => true,
+                _ => false
+            };
+            if infix {
+                return self.parse_fixity_declaration();
             }
         }
         if let Some(fun) = self.try_parse(&mut Self::parse_function_lhs)? {
@@ -144,14 +155,6 @@ impl<'a> ParserState<'a> {
     pub (super) fn parse_default_declaration(&mut self) -> anyhow::Result<Vec<Type>> {
         self.expect(TokenValue::Default)?;
         self.parse_paren_list(&mut Self::parse_type)
-    }
-
-    pub (super) fn parse_type_signature(&mut self) -> anyhow::Result<Declaration> {
-        let vars = self.parse_separated_by(&mut Self::parse_var, TokenValue::Comma)?;
-        self.expect(TokenValue::DoubleColon)?;
-        let context = self.try_parse(&mut |this| this.parse_context(false))?;
-        let ty = self.parse_type()?;
-        Ok(self.new_declaration(DeclarationValue::TypeSignature(vars, context, ty)))
     }
 
     pub(super) fn parse_fixity_declaration(&mut self) -> anyhow::Result<Declaration> {

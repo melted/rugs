@@ -33,9 +33,11 @@ impl<'a> ParserState<'a> {
             data.constructors =
                 self.parse_separated_by(&mut Self::parse_constructor, TokenValue::Bar)?;
         }
-        data.deriving = self
-            .try_parse(&mut Self::parse_deriving)?
-            .unwrap_or_default();
+        data.deriving = if self.is_next(TokenValue::Deriving)? {
+            self.parse_deriving()?
+        } else {
+            Vec::new()
+        };
         Ok(data)
     }
 
@@ -45,9 +47,11 @@ impl<'a> ParserState<'a> {
         self.expect(TokenValue::Equals)?;
         let constructor = self.parse_newtype_constructor()?;
         let mut newtype = self.new_newtype(the_type, constructor);
-        newtype.deriving = self
-            .try_parse(&mut Self::parse_deriving)?
-            .unwrap_or_default();
+        newtype.deriving = if self.is_next(TokenValue::Deriving)? {
+            self.parse_deriving()?
+        } else {
+            Vec::new()
+        };
         Ok(newtype)
     }
 
@@ -82,10 +86,14 @@ impl<'a> ParserState<'a> {
             Ok(Type::base(res))
         } else if let Some(res) = self.try_parse(&mut Self::parse_varid)? {
             Ok(Type::var(res))
-        } else if let Some(res) =
-            self.try_parse(&mut |this| this.parse_paren_list(&mut Self::parse_type))?
-        {
-            Ok(Type::tuple(res))
+        } else if self.peek_next(TokenValue::LeftParen)? {
+            let mut res = self.parse_paren_list(&mut Self::parse_type)?;
+            if (res.len() == 1) {
+                let s = res.pop().unwrap();
+                Ok(s)
+            } else {
+                Ok(Type::tuple(res))
+            }
         } else if let Some(res) = self.try_parse(&mut |this| {
             this.parse_surrounded_by(
                 TokenValue::LeftBracket,
@@ -94,10 +102,6 @@ impl<'a> ParserState<'a> {
             )
         })? {
             Ok(Type::list(res))
-        } else if let Some(res) =
-            self.try_parse(&mut |this| this.parse_surrounded_parens(&mut Self::parse_type))?
-        {
-            Ok(res)
         } else {
             Err(self.error("Not an atype"))
         }

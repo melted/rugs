@@ -636,3 +636,238 @@ pub fn qconsym(module: &str, name: &str) -> Identifier {
 pub fn module(module: &str) -> Identifier {
     Identifier::Module(module.to_string())
 }
+
+trait AstVisitor {
+    fn on_expression(&mut self, exp : &Expression) {}
+    fn on_pattern(&mut self, pat : &Pattern) {}
+    fn on_declaration(&mut self, decl : &Declaration) {}
+    fn on_top_declaration(&mut self, decl : &TopDeclaration) {}
+}
+
+
+impl Expression {
+    fn visit(&self, visitor : &mut impl AstVisitor) {
+        visitor.on_expression(&self);
+        match &*self.value {
+            ExpressionValue::App(f, arg) => {
+                f.visit(visitor);
+                arg.visit(visitor);
+            },
+            ExpressionValue::Case(sc, alts) => {
+                sc.visit(visitor);
+                for alt in alts {
+                    alt.visit(visitor);
+                }
+            },
+            ExpressionValue::Comprehension(exp, quals) => {
+                exp.visit(visitor);
+                for qual in quals {
+                    qual.visit(visitor);
+                }
+            },
+            ExpressionValue::Do(stmts) => {
+                for stmt in stmts {
+                    stmt.visit(visitor);
+                }
+            },
+            ExpressionValue::If(pred, thn, els) => {
+                pred.visit(visitor);
+                thn.visit(visitor);
+                els.visit(visitor);
+            },
+            ExpressionValue::Infix(_, lhs, rhs) => {
+                lhs.visit(visitor);
+                rhs.visit(visitor);
+            },
+            ExpressionValue::LabeledCon(_, fields) => {
+                for (_, exp) in fields {
+                    exp.visit(visitor);
+                }
+            },
+            ExpressionValue::LabeledUpdate(_, fields) => {
+                for (_, exp) in fields {
+                    exp.visit(visitor);
+                }
+            },
+            ExpressionValue::Lambda(pats, body) => {
+                for pat in pats {
+                    pat.visit(visitor);
+                }
+                body.visit(visitor);
+            }
+            ExpressionValue::Let(decls, body) => {
+                for decl in decls {
+                    decl.visit(visitor);
+                }
+                body.visit(visitor);
+            }
+            ExpressionValue::List(exps) => {
+                for exp in exps {
+                    exp.visit(visitor);
+                }
+            }
+            ExpressionValue::Tuple(exps) => {
+                for exp in exps {
+                    exp.visit(visitor);
+                }
+            }
+            ExpressionValue::Typed(exp, _, _) => {
+                exp.visit(visitor);
+            }
+            ExpressionValue::Wrapped(exp) => {
+                exp.visit(visitor);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl Pattern {
+    fn visit(&self, visitor : &mut impl AstVisitor) {
+        visitor.on_pattern(self);
+        match &*self.value {
+            PatternValue::As(_, pat) => pat.visit(visitor),
+            PatternValue::Constructor(_, pats) => {
+                for pat in pats {
+                    pat.visit(visitor);
+                }
+            },
+            PatternValue::InfixConstructor(_, lhs, rhs) => {
+                lhs.visit(visitor);
+                rhs.visit(visitor);
+            },
+            PatternValue::Irrefutable(pat) => pat.visit(visitor),
+            PatternValue::Labeled(_, fields) => {
+                for (_, pat) in fields {
+                    pat.visit(visitor);
+                }
+            },
+            PatternValue::List(pats) => {
+                for pat in pats {
+                    pat.visit(visitor);
+                }
+            },
+            PatternValue::Tuple(pats) => {
+                for pat in pats {
+                    pat.visit(visitor);
+                }
+            },
+            PatternValue::Wrapped(pat) => pat.visit(visitor),
+            _ => {}
+        }
+    }
+}
+
+impl CaseAlt {
+    fn visit(&self, visitor : &mut impl AstVisitor) {
+        match self {
+            CaseAlt::Simple(pat, exp) => {
+                pat.visit(visitor);
+                exp.visit(visitor);
+            },
+            CaseAlt::Guarded(pat, gexps) => {
+                pat.visit(visitor);
+                for gexp in gexps {
+                    gexp.visit(visitor);
+                }
+            }
+        }
+    } 
+}
+
+impl GuardedExpression {
+    fn visit(&self, visitor : &mut impl AstVisitor) {
+        for guard in &self.guards {
+            guard.visit(visitor);
+        }
+        self.body.visit(visitor);
+    } 
+}
+
+impl SeqSyntax {
+    fn visit(&self, visitor : &mut impl AstVisitor) {
+        match self {
+            Self::Pattern(pat, exp) => {
+                pat.visit(visitor);
+                exp.visit(visitor);
+            }
+            Self::Expr(exp) => exp.visit(visitor),
+            Self::Decls(decls) => {
+                for decl in decls {
+                    decl.visit(visitor);
+                }
+            }
+            _ => {}
+        }
+    } 
+}
+
+
+impl TopDeclaration {
+    fn visit(&self, visitor : & mut impl AstVisitor) {
+        visitor.on_top_declaration(self);
+    }
+}
+
+impl Declaration {
+    fn visit(&self, visitor : &mut impl AstVisitor) {
+        visitor.on_declaration(self);
+        match &self.value {
+            DeclarationValue::FunBind(fun, rhs) => {
+                fun.visit(visitor);
+                rhs.visit(visitor);
+            }
+            DeclarationValue::PatBind(pat, rhs) => {
+                pat.visit(visitor);
+                rhs.visit(visitor);
+            },
+            DeclarationValue::VarBind(_, rhs) => {
+                rhs.visit(visitor);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl FunBind {
+    fn visit(&self, visitor : & mut impl AstVisitor) {
+        match self {
+            FunBind::Op(_, lhs, rhs) => {
+                lhs.visit(visitor);
+                rhs.visit(visitor);
+            }
+            FunBind::Plain(_, pats) => {
+                for pat in pats {
+                    pat.visit(visitor);
+                }
+            }
+            FunBind::Wrapped(inner, pats) => {
+                inner.visit(visitor);
+                for pat in pats {
+                    pat.visit(visitor);
+                }
+            }
+        }
+    }
+}
+
+impl Binding {
+    fn visit(&self, visitor : &mut impl AstVisitor) {
+        match self {
+            Binding::Guarded(gexps, decls) => {
+                for gexp in gexps {
+                    gexp.visit(visitor);
+                }
+                for decl in decls {
+                    decl.visit(visitor);
+                }
+            }
+            Binding::Plain(exp, decls) => {
+                exp.visit(visitor);
+                for decl in decls {
+                    decl.visit(visitor);
+                }
+            }
+        }
+    }
+}

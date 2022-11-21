@@ -199,24 +199,29 @@ impl<'a> ParserState<'a> {
             this.expect(TokenValue::DotDot)?;
             Ok((first, step))
         })? {
-            let stop = self.try_parse(&mut Self::parse_expression)?;
-            self.expect(TokenValue::RightBracket)?;
-            match (step, stop) {
-                (Some (a), Some(b)) => {
-                    let f = self.var(varid("enumFromThenTo"));
-                    Ok(self.apps(f, vec![start, a, b]))
-                },
-                (Some (a), None) => {
-                    let f = self.var(varid("enumFromThen"));
-                    Ok(self.apps(f, vec![start, a]))
-                },
-                (None, Some (b)) => {
-                    let f = self.var(varid("enumFromTo"));
-                    Ok(self.apps(f, vec![start, b]))
-                },
-                (None, None) => {
-                    let f = self.var(varid("enumFrom"));
-                    Ok(self.app(f, start))
+            if self.is_next(TokenValue::RightBracket)? {
+                match step {
+                    Some (a) => {
+                        let f = self.var(varid("enumFromThen"));
+                        Ok(self.apps(f, vec![start, a]))
+                    },
+                    None => {
+                        let f = self.var(varid("enumFrom"));
+                        Ok(self.app(f, start))
+                    }
+                }
+            } else {
+                let stop = self.parse_expression()?;
+                self.expect(TokenValue::RightBracket)?;
+                match step {
+                    Some (a) => {
+                        let f = self.var(varid("enumFromThenTo"));
+                        Ok(self.apps(f, vec![start, a, stop]))
+                    },
+                    None => {
+                        let f = self.var(varid("enumFromTo"));
+                        Ok(self.apps(f, vec![start, stop]))
+                    },
                 }
             }
         } else if let Some(exp) = self.try_parse(&mut |this| {

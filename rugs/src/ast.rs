@@ -1,6 +1,6 @@
 //! This module contains the AST data structures that are the output
 //! of the parsing state.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use num_bigint::BigInt;
 
@@ -374,7 +374,7 @@ pub enum PatternValue {
     Wrapped(Pattern)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier {
     module : Option<String>,
     name : String
@@ -625,7 +625,7 @@ pub fn module(module: &str) -> Identifier {
     }
 }
 
-trait AstVisitor {
+pub trait AstVisitor {
     fn on_expression(&mut self, exp : &Expression) {}
     fn on_pattern(&mut self, pat : &Pattern) {}
     fn on_declaration(&mut self, decl : &Declaration) {}
@@ -634,7 +634,7 @@ trait AstVisitor {
 
 
 impl Expression {
-    fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor : &mut impl AstVisitor) {
         visitor.on_expression(&self);
         match &*self.value {
             ExpressionValue::App(f, arg) => {
@@ -708,10 +708,31 @@ impl Expression {
             _ => {}
         }
     }
+
+    pub fn used_variables(&self) -> HashSet<Identifier> {
+        struct Result {
+            vars : HashSet<Identifier>
+        }
+
+        impl AstVisitor for Result {
+            fn on_expression(&mut self, exp : &Expression) {
+                match &*exp.value {
+                    ExpressionValue::Var(v) => {
+                        self.vars.insert(v.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let mut vars = Result { vars: HashSet::new() };
+        self.visit(&mut vars);
+        vars.vars
+    }
 }
 
 impl Pattern {
-    fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor : &mut impl AstVisitor) {
         visitor.on_pattern(self);
         match &*self.value {
             PatternValue::As(_, pat) => pat.visit(visitor),
@@ -747,7 +768,7 @@ impl Pattern {
 }
 
 impl CaseAlt {
-    fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor : &mut impl AstVisitor) {
         match self {
             CaseAlt::Simple(pat, exp) => {
                 pat.visit(visitor);
@@ -764,7 +785,7 @@ impl CaseAlt {
 }
 
 impl GuardedExpression {
-    fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor : &mut impl AstVisitor) {
         for guard in &self.guards {
             guard.visit(visitor);
         }
@@ -773,7 +794,7 @@ impl GuardedExpression {
 }
 
 impl SeqSyntax {
-    fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor : &mut impl AstVisitor) {
         match self {
             Self::Pattern(pat, exp) => {
                 pat.visit(visitor);
@@ -792,13 +813,13 @@ impl SeqSyntax {
 
 
 impl TopDeclaration {
-    fn visit(&self, visitor : & mut impl AstVisitor) {
+    pub fn visit(&self, visitor : & mut impl AstVisitor) {
         visitor.on_top_declaration(self);
     }
 }
 
 impl Declaration {
-    fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor : &mut impl AstVisitor) {
         visitor.on_declaration(self);
         match &self.value {
             DeclarationValue::FunBind(fun, rhs) => {
@@ -818,7 +839,7 @@ impl Declaration {
 }
 
 impl FunBind {
-    fn visit(&self, visitor : & mut impl AstVisitor) {
+    pub fn visit(&self, visitor : & mut impl AstVisitor) {
         match self {
             FunBind::Op(_, lhs, rhs) => {
                 lhs.visit(visitor);
@@ -840,7 +861,7 @@ impl FunBind {
 }
 
 impl Binding {
-    fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor : &mut impl AstVisitor) {
         match self {
             Binding::Guarded(gexps, decls) => {
                 for gexp in gexps {

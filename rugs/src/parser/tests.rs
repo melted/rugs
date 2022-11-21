@@ -98,4 +98,10 @@ fn parse_data() {
     assert!(res.is_ok());
 }
 
-
+#[test]
+fn check_used() {
+    let res = parse_expression("let x = y + 1 in a + b + c + x").unwrap();
+    let exp = res.expression;
+    let used = exp.used_variables();
+    assert!(used.len() == 5);
+}

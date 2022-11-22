@@ -2,6 +2,7 @@ use super::declaration::DeclKind;
 use super::helpers::error;
 use super::lexing::{Token, TokenValue};
 use super::ParserState;
+use crate::names::generate_fresh_name;
 use crate::{ast::*, location::Location};
 
 impl<'a> ParserState<'a> {
@@ -26,8 +27,16 @@ impl<'a> ParserState<'a> {
         }
         let exp = self.parse_lexp()?;
         if let Some(op) = self.try_parse(&mut Self::parse_qop)? {
-            let exp_right = self.parse_infix_expression()?;
-            Ok(self.infix(op, exp, exp_right))
+            if self.peek_next(TokenValue::RightParen)? {
+                let var = generate_fresh_name("y", exp.used_variables());
+                let pat = vec![self.pattern(PatternValue::Var(var.clone()))];
+                let var_exp = self.var(var);
+                let op_exp = self.infix(op, exp, var_exp);
+                Ok(self.lambda(pat, op_exp))
+            } else {
+                let exp_right = self.parse_infix_expression()?;
+                Ok(self.infix(op, exp, exp_right))
+            }
         } else {
             Ok(exp)
         }
@@ -89,6 +98,7 @@ impl<'a> ParserState<'a> {
     }
 
     fn parse_parens_exp(&mut self) -> anyhow::Result<Expression> {
+        let mut left_section = false;
         let tok = self.peek_next_token()?;
         let exp = match tok.value {
             TokenValue::RightParen => {
@@ -104,7 +114,26 @@ impl<'a> ParserState<'a> {
                 con.push(')');
                 return Ok(self.var(conid(&con)));
             }
-            _ => self.parse_expression()?,
+            _ => {
+                if let Some(op) = self.try_parse(&mut |this| {
+                    let qop = this.parse_qop()?;
+                    if qop == conid("-") {
+                        Err(this.error(""))
+                    } else {
+                        Ok(qop)
+                    }
+                })? {
+                    left_section = true;
+                    let exp = self.parse_infix_expression()?;
+                    let var = generate_fresh_name("x", exp.used_variables());
+                    let pat = vec![self.pattern(PatternValue::Var(var.clone()))];
+                    let var_exp = self.var(var);
+                    let op_exp = self.infix(op, var_exp, exp);
+                    self.lambda(pat, op_exp)
+                } else {
+                    self.parse_expression()?
+                }
+            },
         };
         let tok = self.get_next_token()?;
         match tok.value {

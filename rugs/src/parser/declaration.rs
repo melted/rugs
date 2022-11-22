@@ -52,6 +52,10 @@ impl<'a> ParserState<'a> {
     }
 
     pub(super) fn parse_declaration(&mut self, decl_kind: DeclKind) -> anyhow::Result<Declaration> {
+        match &self.peek_next_token()?.value {
+            TokenValue::Semicolon | TokenValue::VirtualRightBrace | TokenValue::RightBrace => return Ok(self.new_declaration(DeclarationValue::Empty)),
+            _ => ()
+        };
         if decl_kind != DeclKind::Instance {
             if let Some(vars) = self.try_parse(&mut |this| {
                 let vars = this.parse_separated_by(&mut Self::parse_var, TokenValue::Comma)?;

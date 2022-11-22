@@ -105,3 +105,22 @@ fn check_used() {
     let used = exp.used_variables();
     assert!(used.len() == 5);
 }
+
+#[test]
+fn parse_section() {
+    let res = parse_expression("(+5)");
+    assert!(res.is_ok());
+}
+
+
+#[test]
+fn parse_section_right() {
+    let res = parse_expression("(5+)");
+    assert!(res.is_ok());
+}
+
+#[test]
+fn parse_sections() {
+    let res = parse_expression("((5 *) +)");
+    assert!(res.is_ok());
+}

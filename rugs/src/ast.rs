@@ -208,6 +208,7 @@ pub enum DeclarationValue {
     VarBind(Identifier, Binding),
     PatBind(Pattern, Binding),
     FunBind(FunBind, Binding),
+    Empty
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

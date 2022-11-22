@@ -30,7 +30,6 @@ fn main() -> Result<(), std::io::Error> {
             };
             println!("Result: {:?}\n", res);
         }
-
     } else {
         println!("Not implemented yet");
     }

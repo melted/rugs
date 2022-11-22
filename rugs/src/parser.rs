@@ -13,7 +13,7 @@ use std::iter::Peekable;
 use std::str::CharIndices;
 
 use self::lexing::{Token, TokenValue};
-use crate::ast::{AstMaker, Expression, Metadata, Module, NodeId, TopExpression};
+use crate::ast::{AstMaker, Metadata, Module, NodeId, TopExpression};
 use crate::error::RugsError;
 use crate::location::Location;
 

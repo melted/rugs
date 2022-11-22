@@ -1,18 +1,20 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{stdin, Read},
+    io::{stdin, Read}, rc::Rc,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Session {
-    pub source: HashMap<String, String>,
+    pub source: HashMap<String, Rc<String>>,
+    pub options: Options
 }
 
 impl Session {
     pub fn new() -> Session {
         Session {
             source: HashMap::new(),
+            options: Options::new()
         }
     }
 
@@ -21,7 +23,7 @@ impl Session {
             let mut file = File::open(path)?;
             let mut code = String::new();
             file.read_to_string(&mut code)?;
-            self.source.insert(path.clone(), code);
+            self.source.insert(path.clone(), Rc::from(code));
         }
         Ok(())
     }
@@ -30,7 +32,25 @@ impl Session {
         let mut input = stdin().lock();
         let mut code = String::new();
         input.read_to_string(&mut code)?;
-        self.source.insert("stdin".to_string(), code);
+        self.source.insert("stdin".to_string(), Rc::from(code)) ;
         Ok(())
+    }
+}
+
+impl  Default for Session {
+    fn default() -> Self {
+        Session::new()
+    }
+}
+
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Options {
+
+}
+
+impl Options {
+    fn new() -> Options {
+        Options {  }
     }
 }

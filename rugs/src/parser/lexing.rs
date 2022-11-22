@@ -1,8 +1,8 @@
 use std::cmp::min;
 
-use super::{helpers::error, ParserState};
+use super::helpers::error;
 use crate::{
-    ast::{conid, consym, qconid, qconsym, qvarid, qvarsym, varid, varsym, Identifier},
+    ast::*,
     error::RugsError,
     location::Location,
 };
@@ -23,10 +23,6 @@ impl<'a> super::ParserState<'a> {
             self.layout(tok)?;
         }
         Ok(self.tokens[self.token_pos].clone())
-    }
-
-    pub(super) fn push_token(&mut self, token: Token) {
-        self.tokens.insert(self.token_pos, token);
     }
 
     pub(super) fn rewind_lexer(&mut self, n: usize) {
@@ -174,14 +170,14 @@ impl<'a> super::ParserState<'a> {
     fn get_string(&mut self) -> anyhow::Result<Token> {
         let mut result = String::new();
         self.next();
-        while let Some((p, c)) = self.next() {
+        while let Some((_p, c)) = self.next() {
             match c {
                 '"' => {
                     return Ok(self.token(TokenValue::String(result)));
                 }
                 '\\' => {
                     if self.peek()?.is_whitespace() {
-                        let end = self.snarf(|c| char::is_whitespace(*c));
+                        let _end = self.snarf(|c| char::is_whitespace(*c));
                         if self.peek()? == '\'' {
                             self.advance(1);
                         } else {
@@ -238,7 +234,7 @@ impl<'a> super::ParserState<'a> {
                 self.advance(1);
                 let ch = self.peek()?;
                 let v: u32 = ch.into();
-                if v >= 64 && v < 96 {
+                if (64..96).contains(&v) {
                     char::from((v - 64) as u8)
                 } else {
                     return self.lex_error("Invalid ctrl escape");
@@ -420,7 +416,7 @@ impl<'a> super::ParserState<'a> {
         match id {
             "--" => {
                 // TODO: collect doc comments
-                while let Some((p, c)) = self.next() {
+                while let Some((_p, c)) = self.next() {
                     if c == '\n' {
                         break;
                     }
@@ -449,7 +445,7 @@ impl<'a> super::ParserState<'a> {
     }
 
     fn read_block_comment(&mut self) -> anyhow::Result<()> {
-        let start = self.pos;
+        let _start = self.pos;
         // TODO: Collect pragmas and doc comments.
         if self.check_prefix("{-#") {
             // It's a pragma
@@ -634,60 +630,11 @@ impl Token {
     pub(super) fn varid(op: &str) -> Token {
         Token::new(TokenValue::VarId(op.to_string()))
     }
-
-    pub(super) fn same_token_type(&self, other: &Token) -> bool {
-        self.value.same_token_type(&other.value)
-    }
-
-    pub(super) fn default_conid() -> Token {
-        Token::new(TokenValue::ConId(String::new()))
-    }
-
-    pub(super) fn default_char() -> Token {
-        Token::new(TokenValue::Char(' '))
-    }
-
-    pub(super) fn default_float() -> Token {
-        Token::new(TokenValue::Float(0.0))
-    }
-
-    pub(super) fn default_integer() -> Token {
-        Token::new(TokenValue::Integer(BigInt::default()))
-    }
-
-    pub(super) fn default_string() -> Token {
-        Token::new(TokenValue::String(String::new()))
-    }
-
-    pub(super) fn default_varid() -> Token {
-        Token::new(TokenValue::VarId(String::new()))
-    }
 }
 
-impl TokenValue {
-    pub(super) fn same_token_type(&self, other: &TokenValue) -> bool {
-        match (self, other) {
-            (TokenValue::Char(_), TokenValue::Char(_)) => true,
-            (TokenValue::ConId(_), TokenValue::ConId(_)) => true,
-            (TokenValue::ConSym(_), TokenValue::ConSym(_)) => true,
-            (TokenValue::Float(_), TokenValue::Float(_)) => true,
-            (TokenValue::Integer(_), TokenValue::Integer(_)) => true,
-            (TokenValue::String(_), TokenValue::String(_)) => true,
-            (TokenValue::QConId(_, _), TokenValue::QConId(_, _)) => true,
-            (TokenValue::QConSym(_, _), TokenValue::QConSym(_, _)) => true,
-            (TokenValue::QVarId(_, _), TokenValue::QVarId(_, _)) => true,
-            (TokenValue::QVarSym(_, _), TokenValue::QVarSym(_, _)) => true,
-            (TokenValue::VarId(_), TokenValue::VarId(_)) => true,
-            (TokenValue::VarSym(_), TokenValue::VarSym(_)) => true,
-            (x, y) if x == y => true,
-            _ => false,
-        }
-    }
-}
-
-impl Into<Token> for TokenValue {
-    fn into(self) -> Token {
-        Token::new(self)
+impl From<TokenValue> for Token {
+    fn from(val: TokenValue) -> Self {
+        Token::new(val)
     }
 }
 

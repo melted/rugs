@@ -88,7 +88,7 @@ impl<'a> ParserState<'a> {
             Ok(Type::var(res))
         } else if self.peek_next(TokenValue::LeftParen)? {
             let mut res = self.parse_paren_list(&mut Self::parse_type)?;
-            if (res.len() == 1) {
+            if res.len() == 1 {
                 let s = res.pop().unwrap();
                 Ok(s)
             } else {
@@ -171,8 +171,8 @@ impl<'a> ParserState<'a> {
                 fields.extend_from_slice(v);
             }
             Ok(Constructor::Labelled {
-                con: con,
-                fields: fields,
+                con,
+                fields,
             })
         } else {
             let args = self.parse_some(&mut |this| {
@@ -181,7 +181,7 @@ impl<'a> ParserState<'a> {
                 Ok((bang, t))
             })?;
             Ok(Constructor::Plain {
-                con: con,
+                con,
                 the_types: args,
             })
         }
@@ -201,7 +201,7 @@ impl<'a> ParserState<'a> {
             output.push(TypeField {
                 label: v,
                 the_type: t.clone(),
-                is_strict: is_strict,
+                is_strict,
             })
         }
         Ok(output)
@@ -220,13 +220,13 @@ impl<'a> ParserState<'a> {
                 is_strict: true,
             }];
             Ok(Constructor::Labelled {
-                con: con,
+                con,
                 fields: v,
             })
         } else {
             let t = self.parse_atype()?;
             Ok(Constructor::Plain {
-                con: con,
+                con,
                 the_types: vec![(true, t)],
             })
         }
@@ -275,7 +275,7 @@ impl<'a> ParserState<'a> {
                     if sorted.len() < vars.len() {
                         return Err(self.error("type variables must be distinct"));
                     }
-                    let tvars = vars.into_iter().map(|v| Type::var(v)).collect();
+                    let tvars = vars.into_iter().map(Type::var).collect();
                     Type::tuple(tvars)
                 }
             }
@@ -308,11 +308,11 @@ impl<'a> ParserState<'a> {
             let var = self.parse_var()?;
             let ftype = self.parse_ftype()?;
             Ok(self.new_foreign(ForeignDeclaration::Import {
-                callconv: callconv,
-                impent: impent,
-                safety: safety,
-                var: var,
-                ftype: ftype,
+                callconv,
+                impent,
+                safety,
+                var,
+                ftype,
             }))
         } else if self.is_next(Token::varid("export").value)? {
             let callconv = self.parse_word()?;
@@ -323,10 +323,10 @@ impl<'a> ParserState<'a> {
             let var = self.parse_var()?;
             let ftype = self.parse_ftype()?;
             Ok(self.new_foreign(ForeignDeclaration::Export {
-                callconv: callconv,
-                expent: expent,
-                var: var,
-                ftype: ftype,
+                callconv,
+                expent,
+                var,
+                ftype,
             }))
         } else {
             Err(self.error("`foreign` must be followed by `import` or `export`"))
@@ -371,7 +371,7 @@ impl<'a> ParserState<'a> {
             )?;
             self.expect(TokenValue::RightParen)?;
             self.expect(TokenValue::DoubleArrow)?;
-            Ok(Context { classes: classes })
+            Ok(Context { classes })
         } else {
             let class = self.parse_context_class(simple)?;
             self.expect(TokenValue::DoubleArrow)?;

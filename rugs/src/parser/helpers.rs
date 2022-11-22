@@ -1,7 +1,7 @@
 use crate::{ast::*, error::RugsError, location::Location};
 
 use super::{
-    lexing::{Token, TokenValue},
+    lexing::TokenValue,
     ParserState,
 };
 
@@ -39,28 +39,6 @@ impl<'a> ParserState<'a> {
         Ok(())
     }
 
-    pub(super) fn expect_token_value(&mut self, t: &mut Token) -> anyhow::Result<()> {
-        let success = self.optional_token_value(t)?;
-        if !success {
-            let tok = self.get_next_token()?;
-            error("bad token type", tok.location)
-        } else {
-            Ok(())
-        }
-    }
-
-    pub(super) fn optional_token_value(&mut self, t: &mut Token) -> anyhow::Result<bool> {
-        let next = self.peek_next_token()?;
-        if next.same_token_type(t) {
-            let tok = self.get_next_token()?;
-            t.value = tok.value;
-            t.location = tok.location;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
     pub(super) fn parse_some<T>(
         &mut self,
         inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
@@ -93,18 +71,6 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_first_of<T>(
-        &mut self,
-        parsers: Vec<&mut impl FnMut(&mut Self) -> anyhow::Result<T>>,
-    ) -> anyhow::Result<T> {
-        for p in parsers {
-            if let Some(res) = self.try_parse(p)? {
-                return Ok(res);
-            }
-        }
-        error("no alternative succeded", self.peek_next_token()?.location)
-    }
-
     pub(super) fn parse_unit(&mut self) -> anyhow::Result<Identifier> {
         self.expect(TokenValue::LeftParen)?;
         self.expect(TokenValue::RightParen)?;
@@ -122,13 +88,6 @@ impl<'a> ParserState<'a> {
         self.expect(TokenValue::RightArrow)?;
         self.expect(TokenValue::RightParen)?;
         Ok(conid("(->)"))
-    }
-
-    pub(super) fn parse_import_all(&mut self) -> anyhow::Result<()> {
-        self.expect(TokenValue::LeftParen)?;
-        self.expect(TokenValue::DotDot)?;
-        self.expect(TokenValue::RightParen)?;
-        Ok(())
     }
 
     pub(super) fn parse_tuplecon(&mut self) -> anyhow::Result<Identifier> {
@@ -154,17 +113,6 @@ impl<'a> ParserState<'a> {
             output.push(inner_parser(self)?);
         }
         Ok(output)
-    }
-
-    fn parse_literal(&mut self) -> anyhow::Result<Const> {
-        let tok = self.get_next_token()?;
-        match tok.value {
-            TokenValue::Char(ch) => Ok(Const::Char(ch)),
-            TokenValue::Float(d) => Ok(Const::Float(d)),
-            TokenValue::Integer(bn) => Ok(Const::Integer(bn)),
-            TokenValue::String(s) => Ok(Const::String(s)),
-            _ => Err(self.error("expected a literal")),
-        }
     }
 
     pub(super) fn optional_semicolon(&mut self) -> anyhow::Result<()> {
@@ -249,13 +197,6 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_surrounded_parens<T>(
-        &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
-    ) -> anyhow::Result<T> {
-        self.parse_surrounded_by(TokenValue::LeftParen, inner_parser, TokenValue::RightParen)
-    }
-
     pub(super) fn parse_surrounded_by<T>(
         &mut self,
         before: TokenValue,
@@ -275,7 +216,7 @@ impl<'a> ParserState<'a> {
         let start = self.token_pos;
         match inner_parser(self) {
             Ok(res) => Ok(Some(res)),
-            Err(err) => {
+            Err(_err) => {
                 self.token_pos = start;
                 Ok(None)
             }
@@ -456,7 +397,7 @@ impl<'a> ParserState<'a> {
 pub(super) fn error<T>(msg: &str, loc: Location) -> anyhow::Result<T> {
     Err(RugsError::Parse {
         msg: msg.to_string(),
-        loc: loc,
+        loc,
     }
     .into())
 }

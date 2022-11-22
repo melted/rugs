@@ -1,6 +1,6 @@
 use super::{
     helpers::error,
-    lexing::{Token, TokenValue},
+    lexing::{TokenValue},
     ParserState,
 };
 use crate::ast::*;
@@ -18,7 +18,7 @@ impl<'a> ParserState<'a> {
         let tok = self.peek_next_token()?;
         match tok.value {
             TokenValue::RightBrace | TokenValue::VirtualRightBrace => return Ok(decls),
-            t => {},
+            _t => {},
         }
         loop {
             let decl = self.parse_top_declaration()?;
@@ -66,28 +66,22 @@ impl<'a> ParserState<'a> {
                 let ty = self.parse_type()?;
                 return Ok(self.new_declaration(DeclarationValue::TypeSignature(vars, context, ty)));
             } 
-            let infix = match self.peek_next_token()?.value {
-                TokenValue::Infix | TokenValue::Infixl |
-                TokenValue::Infixr => true,
-                _ => false
-            };
-            if infix {
+            if matches!(self.peek_next_token()?.value, 
+                                TokenValue::Infix | TokenValue::Infixl | TokenValue::Infixr) {
                 return self.parse_fixity_declaration();
             }
         }
         if let Some(fun) = self.try_parse(&mut Self::parse_function_lhs)? {
             let bind = self.parse_function_rhs()?;
             Ok(self.new_declaration(DeclarationValue::FunBind(fun, bind)))
+        } else if decl_kind == DeclKind::Normal {
+            let pat = self.parse_pattern()?;
+            let bind = self.parse_function_rhs()?;
+            Ok(self.new_declaration(DeclarationValue::PatBind(pat, bind)))
         } else {
-            if decl_kind == DeclKind::Normal {
-                let pat = self.parse_pattern()?;
-                let bind = self.parse_function_rhs()?;
-                Ok(self.new_declaration(DeclarationValue::PatBind(pat, bind)))
-            } else {
-                let var = self.parse_var()?;
-                let bind = self.parse_function_rhs()?;
-                Ok(self.new_declaration(DeclarationValue::VarBind(var, bind)))
-            }
+            let var = self.parse_var()?;
+            let bind = self.parse_function_rhs()?;
+            Ok(self.new_declaration(DeclarationValue::VarBind(var, bind)))
         }
     }
 
@@ -148,7 +142,7 @@ impl<'a> ParserState<'a> {
         let guards = self.parse_guards()?;
         self.expect(TokenValue::Equals)?;
         let exp = self.parse_expression()?;
-        Ok(GuardedExpression { guards: guards, body: exp })
+        Ok(GuardedExpression { guards, body: exp })
     }
 
     pub (super) fn parse_guards(&mut self) -> anyhow::Result<Vec<SeqSyntax>> {

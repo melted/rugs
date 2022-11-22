@@ -132,7 +132,7 @@ impl<'a> ParserState<'a> {
         match mod_tok.value {
             TokenValue::ConId(s) => Ok(module(&s)),
             TokenValue::QConId(m, s) => {
-                let mut mid = m.clone();
+                let mut mid = m;
                 mid.push('.');
                 mid.push_str(&s);
                 Ok(module(&mid))

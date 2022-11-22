@@ -6,7 +6,7 @@ use num_bigint::BigInt;
 
 use crate::location::Location;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Metadata {
     pub file: Option<String>,
     pub trivia: Vec<Annotation>,
@@ -33,6 +33,12 @@ impl Module {
             exports: None,
             declarations: Vec::new(),
         }
+    }
+}
+
+impl  Default for Module {
+    fn default() -> Self {
+        Module::new()
     }
 }
 
@@ -294,7 +300,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Context {
     pub classes: Vec<(Identifier, Vec<Type>)>,
 }
@@ -398,7 +404,7 @@ pub trait AstMaker {
     fn new_import_decl(&mut self, name: Identifier) -> ImportDecl {
         ImportDecl {
             id: self.next_id(),
-            name: name,
+            name,
             qualified: false,
             alias: None,
             specific: None,
@@ -435,7 +441,7 @@ pub trait AstMaker {
         Newtype {
             id: self.next_id(),
             this_type: the_type,
-            constructor: constructor,
+            constructor,
             deriving: Vec::new(),
         }
     }
@@ -452,8 +458,8 @@ pub trait AstMaker {
         Instance {
             id: self.next_id(),
             context: self.new_context(),
-            class: class,
-            ty: ty,
+            class,
+            ty,
             decls: Vec::new(),
         }
     }
@@ -461,7 +467,7 @@ pub trait AstMaker {
     fn new_foreign(&mut self, decl: ForeignDeclaration) -> Foreign {
         Foreign {
             id: self.next_id(),
-            decl: decl,
+            decl,
         }
     }
 
@@ -627,16 +633,16 @@ pub fn module(module: &str) -> Identifier {
 }
 
 pub trait AstVisitor {
-    fn on_expression(&mut self, exp : &Expression) {}
-    fn on_pattern(&mut self, pat : &Pattern) {}
-    fn on_declaration(&mut self, decl : &Declaration) {}
-    fn on_top_declaration(&mut self, decl : &TopDeclaration) {}
+    fn on_expression(&mut self, _exp : &Expression) {}
+    fn on_pattern(&mut self, _pat : &Pattern) {}
+    fn on_declaration(&mut self, _decl : &Declaration) {}
+    fn on_top_declaration(&mut self, _decl : &TopDeclaration) {}
 }
 
 
 impl Expression {
     pub fn visit(&self, visitor : &mut impl AstVisitor) {
-        visitor.on_expression(&self);
+        visitor.on_expression(self);
         match &*self.value {
             ExpressionValue::App(f, arg) => {
                 f.visit(visitor);
@@ -717,11 +723,8 @@ impl Expression {
 
         impl AstVisitor for Result {
             fn on_expression(&mut self, exp : &Expression) {
-                match &*exp.value {
-                    ExpressionValue::Var(v) => {
-                        self.vars.insert(v.clone());
-                    }
-                    _ => {}
+                if let ExpressionValue::Var(v) = &*exp.value {
+                    self.vars.insert(v.clone());
                 }
             }
         }

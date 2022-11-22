@@ -3,7 +3,7 @@ use super::helpers::error;
 use super::lexing::{Token, TokenValue};
 use super::ParserState;
 use crate::names::generate_fresh_name;
-use crate::{ast::*, location::Location};
+use crate::{ast::*};
 
 impl<'a> ParserState<'a> {
     pub(super) fn parse_expression(&mut self) -> anyhow::Result<Expression> {
@@ -11,7 +11,7 @@ impl<'a> ParserState<'a> {
         if self.is_next(TokenValue::DoubleColon)? {
             let context = self
                 .try_parse(&mut |this| this.parse_context(false))?
-                .unwrap_or(self.new_context());
+                .unwrap_or_default();
             let ty = self.parse_type()?;
             Ok(self.typed(exp, context, ty))
         } else {
@@ -98,7 +98,6 @@ impl<'a> ParserState<'a> {
     }
 
     fn parse_parens_exp(&mut self) -> anyhow::Result<Expression> {
-        let mut left_section = false;
         let tok = self.peek_next_token()?;
         let exp = match tok.value {
             TokenValue::RightParen => {
@@ -123,7 +122,6 @@ impl<'a> ParserState<'a> {
                         Ok(qop)
                     }
                 })? {
-                    left_section = true;
                     let exp = self.parse_infix_expression()?;
                     let var = generate_fresh_name("x", exp.used_variables());
                     let pat = vec![self.pattern(PatternValue::Var(var.clone()))];
@@ -180,7 +178,7 @@ impl<'a> ParserState<'a> {
 
     fn parse_let_expression(&mut self) -> anyhow::Result<Expression> {
         self.expect(TokenValue::Let)?;
-        let decls = self.parse_braced_list(&mut |this, is_virtual| {
+        let decls = self.parse_braced_list(&mut |this, _is_virtual| {
             let res = this.parse_declaration(DeclKind::Normal)?;
             Ok(res)
         })?;
@@ -267,7 +265,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_case_alt(&mut self, is_virtual: bool) -> anyhow::Result<CaseAlt> {
+    fn parse_case_alt(&mut self, _is_virtual: bool) -> anyhow::Result<CaseAlt> {
         let pat = self.parse_pattern()?;
         if self.is_next(TokenValue::RightArrow)? {
             let exp = self.parse_expression()?;
@@ -282,7 +280,7 @@ impl<'a> ParserState<'a> {
         let guards = self.parse_guards()?;
         self.expect(TokenValue::RightArrow)?;
         let exp = self.parse_expression()?;
-        Ok(GuardedExpression { guards: guards, body: exp })
+        Ok(GuardedExpression { guards, body: exp })
     }
 
     pub (super) fn parse_seqsyntax(&mut self, kind: SeqKind) -> anyhow::Result<SeqSyntax> {

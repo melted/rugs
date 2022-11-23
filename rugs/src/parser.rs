@@ -100,15 +100,13 @@ impl<'a> ParserState<'a> {
     }
 
     pub(self) fn error(&self, msg: &str) -> anyhow::Error {
-        //println!("{}", std::backtrace::Backtrace::capture());
         RugsError::Parse {
             msg: msg.to_string(),
             loc: Location::Offset {
                 start: self.pos,
                 end: self.pos,
             },
-        }
-        .into()
+        }.into()
     }
 }
 

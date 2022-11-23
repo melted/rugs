@@ -12,12 +12,15 @@ use std::io::Write;
 use std::iter::Peekable;
 use std::str::CharIndices;
 
+use log::info;
+
 use self::lexing::{Token, TokenValue};
 use crate::ast::{AstMaker, Metadata, Module, NodeId, TopExpression};
 use crate::error::RugsError;
 use crate::location::Location;
 
 pub fn parse(file_name: Option<&str>, code: &str) -> anyhow::Result<Module> {
+    info!("Parsing module from {}", file_name.unwrap_or("unnamed"));
     let mut state = ParserState::new(code);
     state.metadata.file = file_name.map(|f| f.to_string());
     let mut module = state.parse_module()?;
@@ -26,6 +29,7 @@ pub fn parse(file_name: Option<&str>, code: &str) -> anyhow::Result<Module> {
 }
 
 pub fn parse_expression(expr: &str) -> anyhow::Result<TopExpression> {
+    info!("Parsing expression");
     let mut state = ParserState::new(expr);
     state.layout_start = false;
     let exp = state.parse_expression()?;
@@ -37,7 +41,7 @@ pub fn parse_expression(expr: &str) -> anyhow::Result<TopExpression> {
 
 pub fn dump_tokens(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
     let mut state = ParserState::new(code);
-
+    info!("Dumping tokens from lexer");
     loop {
         let t = state.get_next_token()?;
         writeln!(output, "{:?}", t).unwrap(); // YOLO
@@ -50,12 +54,14 @@ pub fn dump_tokens(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
 
 pub fn dump_ast(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
     let module = parse(None, code)?;
+    info!("Dumping module AST");
     writeln!(output, "{:?}", module)?;
     Ok(())
 }
 
 pub fn dump_ast_expression(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
     let exp = parse_expression(code)?;
+    info!("Dumping expression AST");
     writeln!(output, "{:?}", exp)?;
     Ok(())
 }

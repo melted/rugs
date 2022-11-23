@@ -2,7 +2,7 @@ use super::declaration::DeclKind;
 use super::helpers::error;
 use super::lexing::{Token, TokenValue};
 use super::ParserState;
-use crate::names::generate_fresh_name;
+use crate::support::names::generate_fresh_name;
 use crate::{ast::*};
 
 impl<'a> ParserState<'a> {

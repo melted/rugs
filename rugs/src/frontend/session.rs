@@ -4,6 +4,8 @@ use std::{
     io::{stdin, Read}, rc::Rc,
 };
 
+use log::info;
+
 #[derive(Debug, Clone)]
 pub struct Session {
     pub source: HashMap<String, Rc<String>>,
@@ -18,8 +20,9 @@ impl Session {
         }
     }
 
-    pub fn load(&mut self, files: Vec<String>) -> std::io::Result<()> {
+    pub fn load(&mut self, files: &Vec<String>) -> std::io::Result<()> {
         for path in files.iter() {
+            info!("Loading {:?}", path);
             let mut file = File::open(path)?;
             let mut code = String::new();
             file.read_to_string(&mut code)?;
@@ -29,6 +32,7 @@ impl Session {
     }
 
     pub fn load_stdin(&mut self) -> std::io::Result<()> {
+        info!("Reading from stdin");
         let mut input = stdin().lock();
         let mut code = String::new();
         input.read_to_string(&mut code)?;

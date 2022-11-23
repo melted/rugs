@@ -1,4 +1,4 @@
-use crate::location::Location;
+use super::location::Location;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use num_bigint::BigInt;
 
-use crate::location::Location;
+use crate::support::location::Location;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Metadata {

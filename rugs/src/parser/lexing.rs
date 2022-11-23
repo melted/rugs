@@ -3,7 +3,7 @@ use std::cmp::min;
 use super::helpers::error;
 use crate::{
     ast::*,
-    error::RugsError,
+    support::error::RugsError,
     location::Location,
 };
 use num_bigint::BigInt;

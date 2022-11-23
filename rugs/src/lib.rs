@@ -1,6 +1,5 @@
 pub mod ast;
 pub mod context;
-pub mod error;
 pub mod frontend;
 pub mod location;
 pub mod parser;

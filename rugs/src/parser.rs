@@ -16,7 +16,7 @@ use log::info;
 
 use self::lexing::{Token, TokenValue};
 use crate::ast::{AstMaker, Metadata, Module, NodeId, TopExpression};
-use crate::error::RugsError;
+use crate::support::error::RugsError;
 use crate::location::Location;
 
 pub fn parse(file_name: Option<&str>, code: &str) -> anyhow::Result<Module> {

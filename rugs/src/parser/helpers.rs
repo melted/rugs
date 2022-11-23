@@ -1,4 +1,4 @@
-use crate::{ast::*, error::RugsError, location::Location};
+use crate::{ast::*, support::error::RugsError, location::Location};
 
 use super::{
     lexing::TokenValue,

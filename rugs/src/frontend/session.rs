@@ -1,7 +1,8 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{stdin, Read}, rc::Rc,
+    io::{stdin, Read},
+    rc::Rc,
 };
 
 use log::info;
@@ -9,14 +10,14 @@ use log::info;
 #[derive(Debug, Clone)]
 pub struct Session {
     pub source: HashMap<String, Rc<String>>,
-    pub options: Options
+    pub options: Options,
 }
 
 impl Session {
     pub fn new() -> Session {
         Session {
             source: HashMap::new(),
-            options: Options::new()
+            options: Options::new(),
         }
     }
 
@@ -36,25 +37,22 @@ impl Session {
         let mut input = stdin().lock();
         let mut code = String::new();
         input.read_to_string(&mut code)?;
-        self.source.insert("stdin".to_string(), Rc::from(code)) ;
+        self.source.insert("stdin".to_string(), Rc::from(code));
         Ok(())
     }
 }
 
-impl  Default for Session {
+impl Default for Session {
     fn default() -> Self {
         Session::new()
     }
 }
 
-
 #[derive(Debug, PartialEq, Clone)]
-pub struct Options {
-
-}
+pub struct Options {}
 
 impl Options {
     fn new() -> Options {
-        Options {  }
+        Options {}
     }
 }

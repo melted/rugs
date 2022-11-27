@@ -1,6 +1,9 @@
 use crate::ast::*;
 
-use super::{lexing::{ Token, TokenValue}, ParserState};
+use super::{
+    lexing::{Token, TokenValue},
+    ParserState,
+};
 
 impl<'a> ParserState<'a> {
     pub(super) fn parse_pattern(&mut self) -> anyhow::Result<Pattern> {
@@ -17,8 +20,10 @@ impl<'a> ParserState<'a> {
         if self.is_next(Token::varsym("-").value)? {
             match self.get_next_token()?.value {
                 TokenValue::Float(f) => Ok(self.pattern(PatternValue::Literal(Const::Float(f)))),
-                TokenValue::Integer(bn) => Ok(self.pattern(PatternValue::Literal(Const::Integer(bn)))),
-                _ => Err(self.error("Minus in a pattern must be followed by number literal"))
+                TokenValue::Integer(bn) => {
+                    Ok(self.pattern(PatternValue::Literal(Const::Integer(bn))))
+                }
+                _ => Err(self.error("Minus in a pattern must be followed by number literal")),
             }
         } else if let Some(pat) = self.try_parse(&mut Self::parse_apattern)? {
             Ok(pat)
@@ -35,24 +40,23 @@ impl<'a> ParserState<'a> {
             TokenValue::Tilde => {
                 let pat = self.parse_apattern()?;
                 Ok(self.pattern(PatternValue::Irrefutable(pat)))
-            },
+            }
             TokenValue::LeftParen => {
-                let mut pats = self.parse_separated_by(&mut Self::parse_pattern, TokenValue::Comma)?;
+                let mut pats =
+                    self.parse_separated_by(&mut Self::parse_pattern, TokenValue::Comma)?;
                 self.expect(TokenValue::RightParen)?;
                 match pats.len() {
                     0 => Ok(self.pattern(PatternValue::Constructor(conid("()"), Vec::new()))),
                     1 => Ok(self.pattern(PatternValue::Wrapped(pats.pop().unwrap()))),
-                    _ => Ok(self.pattern(PatternValue::Tuple(pats)))
+                    _ => Ok(self.pattern(PatternValue::Tuple(pats))),
                 }
-            },
-            TokenValue::Underscore => {
-                Ok(self.pattern(PatternValue::Wildcard))
-            },
+            }
+            TokenValue::Underscore => Ok(self.pattern(PatternValue::Wildcard)),
             TokenValue::LeftBracket => {
                 let pats = self.parse_separated_by(&mut Self::parse_pattern, TokenValue::Comma)?;
                 self.expect(TokenValue::RightBracket)?;
                 Ok(self.pattern(PatternValue::List(pats)))
-            },
+            }
             TokenValue::Char(ch) => Ok(self.pattern(PatternValue::Literal(Const::Char(ch)))),
             TokenValue::Float(f) => Ok(self.pattern(PatternValue::Literal(Const::Float(f)))),
             TokenValue::Integer(bn) => Ok(self.pattern(PatternValue::Literal(Const::Integer(bn)))),
@@ -71,7 +75,8 @@ impl<'a> ParserState<'a> {
                     this.expect(TokenValue::LeftBrace)?;
                     Ok(con)
                 })? {
-                    let pat_fields = self.parse_separated_by(&mut Self::parse_pattern_field, TokenValue::Comma)?;
+                    let pat_fields =
+                        self.parse_separated_by(&mut Self::parse_pattern_field, TokenValue::Comma)?;
                     Ok(self.pattern(PatternValue::Labeled(v, pat_fields)))
                 } else if let Some(con) = self.try_parse(&mut |this| {
                     let con = this.parse_gcon()?;

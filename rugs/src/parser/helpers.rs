@@ -1,15 +1,15 @@
-use crate::{ast::*, support::{error::RugsError, location::Location}};
-
-use super::{
-    lexing::TokenValue,
-    ParserState,
+use crate::{
+    ast::*,
+    support::{error::RugsError, location::Location},
 };
+
+use super::{lexing::TokenValue, ParserState};
 
 impl<'a> ParserState<'a> {
     pub(super) fn expect(&mut self, t: TokenValue) -> anyhow::Result<()> {
         let next = self.get_next_token()?;
         if t != next.value {
-            error(&format!("expected {:?}, got {:?}", t, next.value), next.location) // TODO: Fix error location
+            Err(self.error(&format!("expected {:?}, got {:?}", t, next.value)))
         } else {
             Ok(())
         }
@@ -52,7 +52,7 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_some1<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>
+        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
     ) -> anyhow::Result<Vec<T>> {
         let mut output = Vec::new();
         let first = inner_parser(self)?;
@@ -63,11 +63,13 @@ impl<'a> ParserState<'a> {
         Ok(output)
     }
 
-    pub (super) fn parse_none<T>(&mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>) -> anyhow::Result<()> {
+    pub(super) fn parse_none<T>(
+        &mut self,
+        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
+    ) -> anyhow::Result<()> {
         match self.try_parse(inner_parser)? {
             Some(_) => Err(self.error("Expected none")),
-            None => Ok(())
+            None => Ok(()),
         }
     }
 
@@ -123,7 +125,7 @@ impl<'a> ParserState<'a> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::ConId(s) => Ok(conid(&s)),
-            _ => error("expected a conid", tok.location),
+            _ => Err(self.error("expected a conid")),
         }
     }
 
@@ -132,7 +134,7 @@ impl<'a> ParserState<'a> {
         match tok.value {
             TokenValue::ConId(s) => Ok(conid(&s)),
             TokenValue::QConId(m, s) => Ok(qconid(&m, &s)),
-            _ => error("expected a conid", tok.location),
+            _ => Err(self.error("expected a conid")),
         }
     }
 
@@ -140,7 +142,7 @@ impl<'a> ParserState<'a> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::VarId(s) => Ok(varid(&s)),
-            _ => error("expected a varid", tok.location),
+            _ => Err(self.error("expected a varid")),
         }
     }
 
@@ -149,7 +151,7 @@ impl<'a> ParserState<'a> {
         match tok.value {
             TokenValue::VarId(s) => Ok(s),
             TokenValue::ConId(s) => Ok(s),
-            _ => error("expected a varid", tok.location),
+            _ => Err(self.error("expected a varid")),
         }
     }
 
@@ -158,7 +160,7 @@ impl<'a> ParserState<'a> {
         match tok.value {
             TokenValue::VarId(s) => Ok(varid(&s)),
             TokenValue::QVarId(m, s) => Ok(qvarid(&m, &s)),
-            _ => error("expected a qualified varid", tok.location),
+            _ => Err(self.error("expected a qualified varid")),
         }
     }
 
@@ -166,7 +168,7 @@ impl<'a> ParserState<'a> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::VarSym(s) => Ok(varsym(&s)),
-            _ => error("expected a varsym", tok.location),
+            _ => Err(self.error("expected a varsym")),
         }
     }
 
@@ -175,7 +177,7 @@ impl<'a> ParserState<'a> {
         match tok.value {
             TokenValue::VarSym(s) => Ok(varsym(&s)),
             TokenValue::QVarSym(m, s) => Ok(qvarsym(&m, &s)),
-            _ => error("expected a qualified operator", tok.location),
+            _ => Err(self.error("expected a qualified operator")),
         }
     }
 
@@ -183,7 +185,7 @@ impl<'a> ParserState<'a> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::ConSym(s) => Ok(consym(&s)),
-            _ => error("expected a constructor operator", tok.location),
+            _ => Err(self.error("expected a constructor operator")),
         }
     }
 
@@ -193,7 +195,7 @@ impl<'a> ParserState<'a> {
             TokenValue::Colon => Ok(consym(":")),
             TokenValue::ConSym(s) => Ok(consym(&s)),
             TokenValue::QConSym(m, s) => Ok(qconsym(&m, &s)),
-            _ => error("expected a qualified constructor operator", tok.location),
+            _ => Err(self.error("expected a qualified constructor operator")),
         }
     }
 
@@ -232,7 +234,7 @@ impl<'a> ParserState<'a> {
         let is_virtual = match brace.value {
             TokenValue::LeftBrace => false,
             TokenValue::VirtualLeftBrace => true,
-            _ => return error("Expected left brace after let", brace.location),
+            _ => return Err(self.error("Expected left brace after let")),
         };
         if !((!is_virtual && self.is_next(TokenValue::RightBrace)?)
             || (is_virtual && self.is_next(TokenValue::VirtualRightBrace)?))
@@ -245,7 +247,7 @@ impl<'a> ParserState<'a> {
                     TokenValue::Semicolon => {}
                     TokenValue::RightBrace if !is_virtual => break,
                     TokenValue::VirtualRightBrace if is_virtual => break,
-                    _ => return error("Unexpected token in braced list", tok.location),
+                    _ => return Err(self.error("Unexpected token in braced list")),
                 }
             }
         }
@@ -268,7 +270,7 @@ impl<'a> ParserState<'a> {
             match tok.value {
                 TokenValue::Comma => {}
                 TokenValue::RightParen => break,
-                _ => return error("Expected ',' or ')' in export list", tok.location),
+                _ => return Err(self.error("Expected ',' or ')' in export list")),
             }
         }
         Ok(output)
@@ -392,12 +394,4 @@ impl<'a> ParserState<'a> {
             self.parse_qcon()
         }
     }
-}
-
-pub(super) fn error<T>(msg: &str, loc: Location) -> anyhow::Result<T> {
-    Err(RugsError::Parse {
-        msg: msg.to_string(),
-        loc,
-    }
-    .into())
 }

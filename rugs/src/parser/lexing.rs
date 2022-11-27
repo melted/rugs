@@ -1,6 +1,5 @@
 use std::cmp::min;
 
-use super::helpers::error;
 use crate::{
     ast::*,
     support::{error::RugsError, location::Location},
@@ -33,10 +32,11 @@ impl<'a> super::ParserState<'a> {
             TokenValue::Let | TokenValue::Where | TokenValue::Do | TokenValue::Of => {
                 self.layout_start = true;
                 self.tokens.push(tok);
-            },
+            }
             TokenValue::In => {
-                let previous = &self.tokens[self.token_pos-1].value;
-                if previous != &TokenValue::RightBrace && previous != &TokenValue::VirtualRightBrace {
+                let previous = &self.tokens[self.token_pos - 1].value;
+                if previous != &TokenValue::RightBrace && previous != &TokenValue::VirtualRightBrace
+                {
                     self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
                     self.tokens.push(tok);
                     self.layout_stack.pop();
@@ -51,20 +51,18 @@ impl<'a> super::ParserState<'a> {
                     self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
                 }
             }
-            TokenValue::Indent(n) => {
-                loop {
-                    let m = self.layout_stack.last().unwrap_or(&0);
-                    if n < *m {
-                        self.layout_stack.pop();
-                        self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
-                    } else {
-                        if n == *m {
-                            self.tokens.push(Token::new(TokenValue::Semicolon));
-                        }
-                        break;
+            TokenValue::Indent(n) => loop {
+                let m = self.layout_stack.last().unwrap_or(&0);
+                if n < *m {
+                    self.layout_stack.pop();
+                    self.tokens.push(Token::new(TokenValue::VirtualRightBrace));
+                } else {
+                    if n == *m {
+                        self.tokens.push(Token::new(TokenValue::Semicolon));
                     }
+                    break;
                 }
-            }
+            },
             TokenValue::LeftBrace => {
                 self.layout_stack.push(0);
             }
@@ -89,7 +87,7 @@ impl<'a> super::ParserState<'a> {
                 self.tokens.push(tok);
                 self.layout_stack.clear();
             }
-            _ => self.tokens.push(tok)
+            _ => self.tokens.push(tok),
         }
         Ok(())
     }
@@ -397,7 +395,7 @@ impl<'a> super::ParserState<'a> {
             "module" => {
                 self.layout_start = false;
                 Ok(self.token(TokenValue::Module))
-            },
+            }
             "newtype" => Ok(self.token(TokenValue::Newtype)),
             "of" => Ok(self.token(TokenValue::Of)),
             "then" => Ok(self.token(TokenValue::Then)),
@@ -507,7 +505,7 @@ impl<'a> super::ParserState<'a> {
             self.pos = *p;
         } else {
             self.pos = if let Some((p, _)) = item {
-                p+1
+                p + 1
             } else {
                 self.pos
             }
@@ -679,18 +677,21 @@ fn is_identifier_char(c: char) -> bool {
 }
 
 impl TryFrom<Token> for Identifier {
-    type Error = anyhow::Error;
+    type Error = RugsError;
 
     fn try_from(value: Token) -> Result<Self, Self::Error> {
         match Self::try_from(value.value) {
             Ok(x) => Ok(x),
-            Err(_) => error("Token can't be converted to identifier", value.location),
+            Err(_) => Err(RugsError::Parse {
+                msg: "Token can't be converted to identifier".to_string(),
+                loc: Location::Unlocated,
+            }),
         }
     }
 }
 
 impl TryFrom<TokenValue> for Identifier {
-    type Error = anyhow::Error;
+    type Error = RugsError;
 
     fn try_from(value: TokenValue) -> Result<Self, Self::Error> {
         match value {
@@ -702,10 +703,10 @@ impl TryFrom<TokenValue> for Identifier {
             TokenValue::VarId(var) => Ok(varid(&var)),
             TokenValue::ConSym(con) => Ok(consym(&con)),
             TokenValue::VarSym(var) => Ok(varsym(&var)),
-            _ => error(
-                "Token can't be converted to identifier",
-                Location::Unlocated,
-            ),
+            _ => Err(RugsError::Parse {
+                msg: "Token can't be converted to identifier".to_string(),
+                loc: Location::Unlocated,
+            }),
         }
     }
 }

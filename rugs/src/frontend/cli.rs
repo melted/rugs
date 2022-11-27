@@ -15,8 +15,8 @@ pub struct Args {
     #[arg(long)]
     pub log_level: Option<u32>,
 
-    /// The input is an Haskell expression 
-    #[arg(long, short='e')]
+    /// The input is an Haskell expression
+    #[arg(long, short = 'e')]
     pub expression: bool,
 
     /// Input files

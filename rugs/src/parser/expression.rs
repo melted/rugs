@@ -1,9 +1,8 @@
 use super::declaration::DeclKind;
-use super::helpers::error;
 use super::lexing::{Token, TokenValue};
 use super::ParserState;
+use crate::ast::*;
 use crate::support::names::generate_fresh_name;
-use crate::{ast::*};
 
 impl<'a> ParserState<'a> {
     pub(super) fn parse_expression(&mut self) -> anyhow::Result<Expression> {
@@ -77,12 +76,14 @@ impl<'a> ParserState<'a> {
             TokenValue::Float(d) => self.float(&d),
             TokenValue::Integer(bn) => self.integer(bn),
             TokenValue::String(s) => self.string_const(&s),
-            t => return error(&format!("unexpected token {:?} in aexp", t), tok.location),
+            t => return Err(self.error(&format!("unexpected token {:?} in aexp", t))),
         };
         if self.peek_next(TokenValue::LeftBrace)? {
             let rec_expr = self.parse_record_expression()?;
             match tok2.value {
-                TokenValue::QConId(_, _) | TokenValue::ConId(_) => Ok(self.record_constr(Token::try_into(tok2)?, rec_expr)),
+                TokenValue::QConId(_, _) | TokenValue::ConId(_) => {
+                    Ok(self.record_constr(Token::try_into(tok2)?, rec_expr))
+                }
                 _ => {
                     if rec_expr.is_empty() {
                         Err(self.error("Empty record update"))
@@ -91,7 +92,6 @@ impl<'a> ParserState<'a> {
                     }
                 }
             }
-
         } else {
             Ok(expr)
         }
@@ -131,7 +131,7 @@ impl<'a> ParserState<'a> {
                 } else {
                     self.parse_expression()?
                 }
-            },
+            }
         };
         let tok = self.get_next_token()?;
         match tok.value {
@@ -146,21 +146,14 @@ impl<'a> ParserState<'a> {
                         TokenValue::Comma => {}
                         TokenValue::RightParen => break,
                         _ => {
-                            return error(
-                                &format!("Unexpected token {:?} in tuple expression", tok),
-                                tok.location,
-                            )
+                            return Err(self
+                                .error(&format!("Unexpected token {:?} in tuple expression", tok)))
                         }
                     }
                 }
                 Ok(self.tuple(tuple))
             }
-            _ => {
-                return error(
-                    &format!("Expected right paren or comma, got {:?}", tok),
-                    tok.location,
-                )
-            }
+            _ => return Err(self.error(&format!("Expected right paren or comma, got {:?}", tok))),
         }
     }
 
@@ -228,10 +221,10 @@ impl<'a> ParserState<'a> {
         })? {
             if self.is_next(TokenValue::RightBracket)? {
                 match step {
-                    Some (a) => {
+                    Some(a) => {
                         let f = self.var(varid("enumFromThen"));
                         Ok(self.apps(f, vec![start, a]))
-                    },
+                    }
                     None => {
                         let f = self.var(varid("enumFrom"));
                         Ok(self.app(f, start))
@@ -241,14 +234,14 @@ impl<'a> ParserState<'a> {
                 let stop = self.parse_expression()?;
                 self.expect(TokenValue::RightBracket)?;
                 match step {
-                    Some (a) => {
+                    Some(a) => {
                         let f = self.var(varid("enumFromThenTo"));
                         Ok(self.apps(f, vec![start, a, stop]))
-                    },
+                    }
                     None => {
                         let f = self.var(varid("enumFromTo"));
                         Ok(self.apps(f, vec![start, stop]))
-                    },
+                    }
                 }
             }
         } else if let Some(exp) = self.try_parse(&mut |this| {
@@ -256,7 +249,10 @@ impl<'a> ParserState<'a> {
             this.expect(TokenValue::Bar)?;
             Ok(first)
         })? {
-            let quals = self.parse_separated_by(&mut |this| this.parse_seqsyntax(SeqKind::Comprehension), TokenValue::Comma)?;
+            let quals = self.parse_separated_by(
+                &mut |this| this.parse_seqsyntax(SeqKind::Comprehension),
+                TokenValue::Comma,
+            )?;
             Ok(self.comprehension(exp, quals))
         } else {
             let exps = self.parse_separated_by(&mut Self::parse_expression, TokenValue::Comma)?;
@@ -273,26 +269,27 @@ impl<'a> ParserState<'a> {
         } else {
             let guardexps = self.parse_some1(&mut Self::parse_case_guarded)?;
             Ok(CaseAlt::Guarded(pat, guardexps))
-        }  
+        }
     }
 
-    pub (super) fn parse_case_guarded(&mut self) -> anyhow::Result<GuardedExpression> {
+    pub(super) fn parse_case_guarded(&mut self) -> anyhow::Result<GuardedExpression> {
         let guards = self.parse_guards()?;
         self.expect(TokenValue::RightArrow)?;
         let exp = self.parse_expression()?;
         Ok(GuardedExpression { guards, body: exp })
     }
 
-    pub (super) fn parse_seqsyntax(&mut self, kind: SeqKind) -> anyhow::Result<SeqSyntax> {
+    pub(super) fn parse_seqsyntax(&mut self, kind: SeqKind) -> anyhow::Result<SeqSyntax> {
         let expfn = if kind == SeqKind::Guard {
-            |this:&mut ParserState| this.parse_infix_expression()
+            |this: &mut ParserState| this.parse_infix_expression()
         } else {
-            |this:&mut ParserState| this.parse_expression()
+            |this: &mut ParserState| this.parse_expression()
         };
         if self.is_next(TokenValue::Let)? {
-            let decls = self.parse_braced_list(&mut |this,_| this.parse_declaration(DeclKind::Normal))?;
+            let decls =
+                self.parse_braced_list(&mut |this, _| this.parse_declaration(DeclKind::Normal))?;
             Ok(SeqSyntax::Decls(decls))
-        } else if let Some(pat) = self.try_parse(&mut |this|{
+        } else if let Some(pat) = self.try_parse(&mut |this| {
             let pat = this.parse_pattern()?;
             this.expect(TokenValue::LeftArrow)?;
             Ok(pat)
@@ -300,18 +297,20 @@ impl<'a> ParserState<'a> {
             let exp = expfn(self)?;
             Ok(SeqSyntax::Pattern(pat, exp))
         } else if kind == SeqKind::Do && self.is_next(TokenValue::Semicolon)? {
-                Ok(SeqSyntax::Empty)
+            Ok(SeqSyntax::Empty)
         } else {
             let exp = expfn(self)?;
             Ok(SeqSyntax::Expr(exp))
         }
     }
 
-    pub (super) fn parse_record_expression(&mut self) -> anyhow::Result< Vec<(Identifier, Expression)>> {
+    pub(super) fn parse_record_expression(
+        &mut self,
+    ) -> anyhow::Result<Vec<(Identifier, Expression)>> {
         self.parse_separated_by(&mut Self::parse_record_field, TokenValue::Comma)
     }
 
-    pub (super) fn parse_record_field(&mut self) -> anyhow::Result<(Identifier, Expression)> {
+    pub(super) fn parse_record_field(&mut self) -> anyhow::Result<(Identifier, Expression)> {
         let var = self.parse_qvar()?;
         self.expect(TokenValue::Equals)?;
         let exp = self.parse_expression()?;

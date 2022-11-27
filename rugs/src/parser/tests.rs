@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::lexing::{Token, TokenValue};
-use super::{parse, ParserState, parse_expression};
+use super::{parse, parse_expression, ParserState};
 
 #[test]
 fn parse_empty_string() {
@@ -84,17 +84,22 @@ fn parse_if() {
 
 #[test]
 fn parse_case() {
-    let res = parse(None, r#"a = case x of
+    let res = parse(
+        None,
+        r#"a = case x of
                                                                 Just y -> 22
-                                                                Nothing -> 33"#);
+                                                                Nothing -> 33"#,
+    );
     assert!(res.is_ok());
 }
 
 #[test]
 fn parse_data() {
-    let res = parse(None,
-                    r#"data Tree a = Node a (Tree a) (Tree a)
-                                           | Leaf a"#);
+    let res = parse(
+        None,
+        r#"data Tree a = Node a (Tree a) (Tree a)
+                                           | Leaf a"#,
+    );
     assert!(res.is_ok());
 }
 
@@ -111,7 +116,6 @@ fn parse_section() {
     let res = parse_expression("(+5)");
     assert!(res.is_ok());
 }
-
 
 #[test]
 fn parse_section_right() {

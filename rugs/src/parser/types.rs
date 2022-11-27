@@ -170,10 +170,7 @@ impl<'a> ParserState<'a> {
             for v in &raw {
                 fields.extend_from_slice(v);
             }
-            Ok(Constructor::Labelled {
-                con,
-                fields,
-            })
+            Ok(Constructor::Labelled { con, fields })
         } else {
             let args = self.parse_some(&mut |this| {
                 let bang = this.is_next(Token::varsym("!").value)?;
@@ -219,10 +216,7 @@ impl<'a> ParserState<'a> {
                 the_type: t,
                 is_strict: true,
             }];
-            Ok(Constructor::Labelled {
-                con,
-                fields: v,
-            })
+            Ok(Constructor::Labelled { con, fields: v })
         } else {
             let t = self.parse_atype()?;
             Ok(Constructor::Plain {

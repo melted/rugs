@@ -1,10 +1,6 @@
-use super::{
-    helpers::error,
-    lexing::{TokenValue},
-    ParserState,
-};
+use super::{lexing::TokenValue, ParserState};
 use crate::ast::*;
- 
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeclKind {
     Instance,
@@ -18,7 +14,7 @@ impl<'a> ParserState<'a> {
         let tok = self.peek_next_token()?;
         match tok.value {
             TokenValue::RightBrace | TokenValue::VirtualRightBrace => return Ok(decls),
-            _t => {},
+            _t => {}
         }
         loop {
             let decl = self.parse_top_declaration()?;
@@ -29,7 +25,11 @@ impl<'a> ParserState<'a> {
                     self.get_next_token()?;
                 }
                 TokenValue::RightBrace | TokenValue::VirtualRightBrace => break,
-                t => return error(&format!("expected semicolon or right brace, got {:?}", t), tok.location),
+                t => {
+                    return Err(
+                        self.error(&format!("expected semicolon or right brace, got {:?}", t))
+                    )
+                }
             }
         }
         Ok(decls)
@@ -53,8 +53,10 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_declaration(&mut self, decl_kind: DeclKind) -> anyhow::Result<Declaration> {
         match &self.peek_next_token()?.value {
-            TokenValue::Semicolon | TokenValue::VirtualRightBrace | TokenValue::RightBrace => return Ok(self.new_declaration(DeclarationValue::Empty)),
-            _ => ()
+            TokenValue::Semicolon | TokenValue::VirtualRightBrace | TokenValue::RightBrace => {
+                return Ok(self.new_declaration(DeclarationValue::Empty))
+            }
+            _ => (),
         };
         if decl_kind != DeclKind::Instance {
             if let Some(vars) = self.try_parse(&mut |this| {
@@ -65,9 +67,11 @@ impl<'a> ParserState<'a> {
                 let context = self.try_parse(&mut |this| this.parse_context(false))?;
                 let ty = self.parse_type()?;
                 return Ok(self.new_declaration(DeclarationValue::TypeSignature(vars, context, ty)));
-            } 
-            if matches!(self.peek_next_token()?.value, 
-                                TokenValue::Infix | TokenValue::Infixl | TokenValue::Infixr) {
+            }
+            if matches!(
+                self.peek_next_token()?.value,
+                TokenValue::Infix | TokenValue::Infixl | TokenValue::Infixr
+            ) {
                 return self.parse_fixity_declaration();
             }
         }
@@ -85,7 +89,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub (super) fn parse_function_lhs(&mut self) -> anyhow::Result<FunBind> {
+    pub(super) fn parse_function_lhs(&mut self) -> anyhow::Result<FunBind> {
         if let Some(fun) = self.try_parse(&mut Self::parse_function_prefix)? {
             Ok(fun)
         } else if let Some(fun) = self.try_parse(&mut Self::parse_function_infix)? {
@@ -97,20 +101,20 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub (super) fn parse_function_prefix(&mut self) -> anyhow::Result<FunBind> {
+    pub(super) fn parse_function_prefix(&mut self) -> anyhow::Result<FunBind> {
         let var = self.parse_var()?;
         let pats = self.parse_some1(&mut Self::parse_apattern)?;
         Ok(FunBind::Plain(var, pats))
     }
 
-    pub (super) fn parse_function_infix(&mut self) -> anyhow::Result<FunBind> {
+    pub(super) fn parse_function_infix(&mut self) -> anyhow::Result<FunBind> {
         let lhs = self.parse_pattern()?;
         let op = self.parse_varop()?;
         let rhs = self.parse_pattern()?;
         Ok(FunBind::Op(op, lhs, rhs))
     }
 
-    pub (super) fn parse_function_wrapped(&mut self) -> anyhow::Result<FunBind> {
+    pub(super) fn parse_function_wrapped(&mut self) -> anyhow::Result<FunBind> {
         self.expect(TokenValue::LeftParen)?;
         let fun = self.parse_function_lhs()?;
         self.expect(TokenValue::RightParen)?;
@@ -118,7 +122,7 @@ impl<'a> ParserState<'a> {
         Ok(FunBind::Wrapped(Box::new(fun), pats))
     }
 
-    pub (super) fn parse_function_rhs(&mut self) -> anyhow::Result<Binding> {
+    pub(super) fn parse_function_rhs(&mut self) -> anyhow::Result<Binding> {
         if self.is_next(TokenValue::Equals)? {
             let exp = self.parse_expression()?;
             let where_decls = self.parse_optional_where()?;
@@ -130,7 +134,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub (super) fn parse_optional_where(&mut self) -> anyhow::Result<Vec<Declaration>> {
+    pub(super) fn parse_optional_where(&mut self) -> anyhow::Result<Vec<Declaration>> {
         if self.is_next(TokenValue::Where)? {
             self.parse_some1(&mut |this| this.parse_declaration(DeclKind::Normal))
         } else {
@@ -138,19 +142,22 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub (super) fn parse_function_rhs_guarded(&mut self) -> anyhow::Result<GuardedExpression> {
+    pub(super) fn parse_function_rhs_guarded(&mut self) -> anyhow::Result<GuardedExpression> {
         let guards = self.parse_guards()?;
         self.expect(TokenValue::Equals)?;
         let exp = self.parse_expression()?;
         Ok(GuardedExpression { guards, body: exp })
     }
 
-    pub (super) fn parse_guards(&mut self) -> anyhow::Result<Vec<SeqSyntax>> {
+    pub(super) fn parse_guards(&mut self) -> anyhow::Result<Vec<SeqSyntax>> {
         self.expect(TokenValue::Bar)?;
-        self.parse_separated_by(&mut |this| this.parse_seqsyntax(SeqKind::Guard), TokenValue::Comma)
+        self.parse_separated_by(
+            &mut |this| this.parse_seqsyntax(SeqKind::Guard),
+            TokenValue::Comma,
+        )
     }
 
-    pub (super) fn parse_default_declaration(&mut self) -> anyhow::Result<Vec<Type>> {
+    pub(super) fn parse_default_declaration(&mut self) -> anyhow::Result<Vec<Type>> {
         self.expect(TokenValue::Default)?;
         self.parse_paren_list(&mut Self::parse_type)
     }

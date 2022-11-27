@@ -1,16 +1,18 @@
 use std::collections::HashSet;
 
-use crate::ast::{Identifier, varid};
-
+use crate::ast::{varid, Identifier};
 
 struct NameGen {
     prefix: String,
-    current: usize
+    current: usize,
 }
 
 impl NameGen {
-    fn new(prefix:&str) -> Self {
-        NameGen { prefix: prefix.to_string(), current: 0 }
+    fn new(prefix: &str) -> Self {
+        NameGen {
+            prefix: prefix.to_string(),
+            current: 0,
+        }
     }
 }
 
@@ -24,7 +26,7 @@ impl Iterator for NameGen {
     }
 }
 
-pub fn generate_fresh_name(prefix : &str, avoid : HashSet<Identifier>) -> Identifier {
+pub fn generate_fresh_name(prefix: &str, avoid: HashSet<Identifier>) -> Identifier {
     let gen = NameGen::new(prefix);
     for id in gen {
         if !avoid.contains(&id) {

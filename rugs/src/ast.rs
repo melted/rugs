@@ -36,7 +36,7 @@ impl Module {
     }
 }
 
-impl  Default for Module {
+impl Default for Module {
     fn default() -> Self {
         Module::new()
     }
@@ -66,8 +66,8 @@ pub struct ImportDecl {
     pub name: Identifier,
     pub qualified: bool,
     pub alias: Option<Identifier>,
-    pub specific: Option<Vec<Import>>,
-    pub hidden: Option<Vec<Import>>,
+    pub import_list: Vec<Import>,
+    pub hidden: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -214,7 +214,7 @@ pub enum DeclarationValue {
     VarBind(Identifier, Binding),
     PatBind(Pattern, Binding),
     FunBind(FunBind, Binding),
-    Empty
+    Empty,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -236,7 +236,7 @@ pub enum SeqSyntax {
     Pattern(Pattern, Expression),
     Decls(Vec<Declaration>),
     Expr(Expression),
-    Empty
+    Empty,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -378,13 +378,13 @@ pub enum PatternValue {
     Tuple(Vec<Pattern>),
     List(Vec<Pattern>),
     Irrefutable(Pattern),
-    Wrapped(Pattern)
+    Wrapped(Pattern),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier {
-    module : Option<String>,
-    name : String
+    module: Option<String>,
+    name: String,
 }
 
 pub trait AstMaker {
@@ -397,8 +397,11 @@ pub trait AstMaker {
         }
     }
 
-    fn pattern(&mut self, value:PatternValue) -> Pattern {
-        Pattern { id: self.next_id(), value: Box::new(value) }
+    fn pattern(&mut self, value: PatternValue) -> Pattern {
+        Pattern {
+            id: self.next_id(),
+            value: Box::new(value),
+        }
     }
 
     fn new_import_decl(&mut self, name: Identifier) -> ImportDecl {
@@ -407,8 +410,8 @@ pub trait AstMaker {
             name,
             qualified: false,
             alias: None,
-            specific: None,
-            hidden: None,
+            import_list: Vec::new(),
+            hidden: false,
         }
     }
 
@@ -482,7 +485,7 @@ pub trait AstMaker {
         self.expr(ExpressionValue::App(f, arg))
     }
 
-    fn apps(&mut self, f:Expression, args:Vec<Expression>) -> Expression {
+    fn apps(&mut self, f: Expression, args: Vec<Expression>) -> Expression {
         let mut exp = f;
         for a in args {
             exp = self.app(exp, a);
@@ -522,7 +525,6 @@ pub trait AstMaker {
         self.expr(ExpressionValue::List(fields))
     }
 
-    
     fn do_expression(&mut self, stmts: Vec<SeqSyntax>) -> Expression {
         self.expr(ExpressionValue::Do(stmts))
     }
@@ -540,11 +542,19 @@ pub trait AstMaker {
         self.expr(ExpressionValue::Comprehension(exp, quals))
     }
 
-    fn record_constr(&mut self, name:Identifier, fields:Vec<(Identifier, Expression)>) -> Expression {
+    fn record_constr(
+        &mut self,
+        name: Identifier,
+        fields: Vec<(Identifier, Expression)>,
+    ) -> Expression {
         self.expr(ExpressionValue::LabeledCon(name, fields))
     }
 
-    fn record_update(&mut self, exp:Expression, fields:Vec<(Identifier, Expression)>) -> Expression {
+    fn record_update(
+        &mut self,
+        exp: Expression,
+        fields: Vec<(Identifier, Expression)>,
+    ) -> Expression {
         self.expr(ExpressionValue::LabeledUpdate(exp, fields))
     }
 
@@ -628,62 +638,61 @@ pub fn qconsym(module: &str, name: &str) -> Identifier {
 pub fn module(module: &str) -> Identifier {
     Identifier {
         module: Some(module.to_string()),
-        name: String::new()
+        name: String::new(),
     }
 }
 
 pub trait AstVisitor {
-    fn on_expression(&mut self, _exp : &Expression) {}
-    fn on_pattern(&mut self, _pat : &Pattern) {}
-    fn on_declaration(&mut self, _decl : &Declaration) {}
-    fn on_top_declaration(&mut self, _decl : &TopDeclaration) {}
+    fn on_expression(&mut self, _exp: &Expression) {}
+    fn on_pattern(&mut self, _pat: &Pattern) {}
+    fn on_declaration(&mut self, _decl: &Declaration) {}
+    fn on_top_declaration(&mut self, _decl: &TopDeclaration) {}
 }
 
-
 impl Expression {
-    pub fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         visitor.on_expression(self);
         match &*self.value {
             ExpressionValue::App(f, arg) => {
                 f.visit(visitor);
                 arg.visit(visitor);
-            },
+            }
             ExpressionValue::Case(sc, alts) => {
                 sc.visit(visitor);
                 for alt in alts {
                     alt.visit(visitor);
                 }
-            },
+            }
             ExpressionValue::Comprehension(exp, quals) => {
                 exp.visit(visitor);
                 for qual in quals {
                     qual.visit(visitor);
                 }
-            },
+            }
             ExpressionValue::Do(stmts) => {
                 for stmt in stmts {
                     stmt.visit(visitor);
                 }
-            },
+            }
             ExpressionValue::If(pred, thn, els) => {
                 pred.visit(visitor);
                 thn.visit(visitor);
                 els.visit(visitor);
-            },
+            }
             ExpressionValue::Infix(_, lhs, rhs) => {
                 lhs.visit(visitor);
                 rhs.visit(visitor);
-            },
+            }
             ExpressionValue::LabeledCon(_, fields) => {
                 for (_, exp) in fields {
                     exp.visit(visitor);
                 }
-            },
+            }
             ExpressionValue::LabeledUpdate(_, fields) => {
                 for (_, exp) in fields {
                     exp.visit(visitor);
                 }
-            },
+            }
             ExpressionValue::Lambda(pats, body) => {
                 for pat in pats {
                     pat.visit(visitor);
@@ -718,25 +727,27 @@ impl Expression {
 
     pub fn used_variables(&self) -> HashSet<Identifier> {
         struct Result {
-            vars : HashSet<Identifier>
+            vars: HashSet<Identifier>,
         }
 
         impl AstVisitor for Result {
-            fn on_expression(&mut self, exp : &Expression) {
+            fn on_expression(&mut self, exp: &Expression) {
                 if let ExpressionValue::Var(v) = &*exp.value {
                     self.vars.insert(v.clone());
                 }
             }
         }
 
-        let mut vars = Result { vars: HashSet::new() };
+        let mut vars = Result {
+            vars: HashSet::new(),
+        };
         self.visit(&mut vars);
         vars.vars
     }
 }
 
 impl Pattern {
-    pub fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         visitor.on_pattern(self);
         match &*self.value {
             PatternValue::As(_, pat) => pat.visit(visitor),
@@ -744,27 +755,27 @@ impl Pattern {
                 for pat in pats {
                     pat.visit(visitor);
                 }
-            },
+            }
             PatternValue::InfixConstructor(_, lhs, rhs) => {
                 lhs.visit(visitor);
                 rhs.visit(visitor);
-            },
+            }
             PatternValue::Irrefutable(pat) => pat.visit(visitor),
             PatternValue::Labeled(_, fields) => {
                 for (_, pat) in fields {
                     pat.visit(visitor);
                 }
-            },
+            }
             PatternValue::List(pats) => {
                 for pat in pats {
                     pat.visit(visitor);
                 }
-            },
+            }
             PatternValue::Tuple(pats) => {
                 for pat in pats {
                     pat.visit(visitor);
                 }
-            },
+            }
             PatternValue::Wrapped(pat) => pat.visit(visitor),
             _ => {}
         }
@@ -772,12 +783,12 @@ impl Pattern {
 }
 
 impl CaseAlt {
-    pub fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         match self {
             CaseAlt::Simple(pat, exp) => {
                 pat.visit(visitor);
                 exp.visit(visitor);
-            },
+            }
             CaseAlt::Guarded(pat, gexps) => {
                 pat.visit(visitor);
                 for gexp in gexps {
@@ -785,20 +796,20 @@ impl CaseAlt {
                 }
             }
         }
-    } 
+    }
 }
 
 impl GuardedExpression {
-    pub fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         for guard in &self.guards {
             guard.visit(visitor);
         }
         self.body.visit(visitor);
-    } 
+    }
 }
 
 impl SeqSyntax {
-    pub fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         match self {
             Self::Pattern(pat, exp) => {
                 pat.visit(visitor);
@@ -812,18 +823,17 @@ impl SeqSyntax {
             }
             _ => {}
         }
-    } 
+    }
 }
 
-
 impl TopDeclaration {
-    pub fn visit(&self, visitor : & mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         visitor.on_top_declaration(self);
     }
 }
 
 impl Declaration {
-    pub fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         visitor.on_declaration(self);
         match &self.value {
             DeclarationValue::FunBind(fun, rhs) => {
@@ -833,7 +843,7 @@ impl Declaration {
             DeclarationValue::PatBind(pat, rhs) => {
                 pat.visit(visitor);
                 rhs.visit(visitor);
-            },
+            }
             DeclarationValue::VarBind(_, rhs) => {
                 rhs.visit(visitor);
             }
@@ -843,7 +853,7 @@ impl Declaration {
 }
 
 impl FunBind {
-    pub fn visit(&self, visitor : & mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         match self {
             FunBind::Op(_, lhs, rhs) => {
                 lhs.visit(visitor);
@@ -865,7 +875,7 @@ impl FunBind {
 }
 
 impl Binding {
-    pub fn visit(&self, visitor : &mut impl AstVisitor) {
+    pub fn visit(&self, visitor: &mut impl AstVisitor) {
         match self {
             Binding::Guarded(gexps, decls) => {
                 for gexp in gexps {

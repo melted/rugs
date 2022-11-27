@@ -2,7 +2,7 @@ use std::io;
 
 use clap::Parser;
 use rugs::frontend::{cli::Args, session::Session};
-use rugs::parser::{dump_tokens, dump_ast_expression, dump_ast};
+use rugs::parser::{dump_ast, dump_ast_expression, dump_tokens};
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -14,9 +14,14 @@ fn main() -> anyhow::Result<()> {
         session.load_stdin()?;
     }
     if let Some(_) = args.log_level {
-        env_logger::builder().filter_level(log::LevelFilter::Trace).init();
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Trace)
+            .init();
     } else {
-        env_logger::builder().filter_level(log::LevelFilter::Trace).parse_env("RUGS_LOG").init();
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Trace)
+            .parse_env("RUGS_LOG")
+            .init();
     }
     run_session(&args, session)?;
     Ok(())

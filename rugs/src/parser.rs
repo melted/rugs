@@ -106,7 +106,8 @@ impl<'a> ParserState<'a> {
                 start: self.pos,
                 end: self.pos,
             },
-        }.into()
+        }
+        .into()
     }
 }
 

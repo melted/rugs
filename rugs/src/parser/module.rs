@@ -1,6 +1,5 @@
 use anyhow::Ok;
 
-use super::helpers::error;
 use super::{
     lexing::{Token, TokenValue},
     ParserState,
@@ -31,7 +30,7 @@ impl<'a> ParserState<'a> {
         let is_virtual = match brace.value {
             TokenValue::LeftBrace => false,
             TokenValue::VirtualLeftBrace => true,
-            _ => return error("Missing brace at start of body", brace.location),
+            _ => return Err(self.error("Missing brace at start of body")),
         };
         let tok = self.peek_next_token()?;
         let imports = match tok.value {
@@ -65,7 +64,7 @@ impl<'a> ParserState<'a> {
                 let modid = Identifier::try_from(tok)?;
                 Ok(Export::Module(modid))
             }
-            _ => error("Invalid export", tok.location),
+            _ => Err(self.error("Invalid export")),
         }
     }
 
@@ -80,7 +79,7 @@ impl<'a> ParserState<'a> {
                         self.get_next_token()?;
                     }
                     TokenValue::RightBrace | TokenValue::VirtualRightBrace => break,
-                    _ => return error("expected semicolon or right brace", tok.location),
+                    _ => return Err(self.error("expected semicolon or right brace")),
                 }
             } else {
                 break;
@@ -101,13 +100,10 @@ impl<'a> ParserState<'a> {
         let hiding = self.is_next(Token::varid("hiding").value)?;
         if self.peek_next(TokenValue::LeftParen)? {
             let impspec = self.parse_paren_list(&mut Self::parse_import)?;
-            if hiding {
-                import.hidden = Some(impspec);
-            } else {
-                import.specific = Some(impspec);
-            }
+            import.import_list = impspec;
+            import.hidden = hiding;
         } else if hiding {
-            return error("No list after `hiding`", self.get_next_token()?.location);
+            return Err(self.error("No list after `hiding`"));
         }
         Ok(import)
     }
@@ -123,7 +119,7 @@ impl<'a> ParserState<'a> {
                 let spec = self.parse_exposed_spec()?;
                 Ok(Import::TypeOrClass(id, spec))
             }
-            _ => error("Invalid import", tok.location),
+            _ => Err(self.error("Invalid import")),
         }
     }
 
@@ -137,10 +133,7 @@ impl<'a> ParserState<'a> {
                 mid.push_str(&s);
                 Ok(module(&mid))
             }
-            _ => error(
-                &format!("Invalid module name token {:?}", mod_tok),
-                mod_tok.location,
-            ),
+            _ => Err(self.error(&format!("Invalid module name token {:?}", mod_tok))),
         }
     }
 

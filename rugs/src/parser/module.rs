@@ -1,13 +1,11 @@
-use anyhow::Ok;
-
 use super::{
     lexing::{Token, TokenValue},
     ParserState,
 };
-use crate::ast::*;
+use crate::{ast::*, support::error};
 
 impl<'a> ParserState<'a> {
-    pub(super) fn parse_module(&mut self) -> anyhow::Result<Module> {
+    pub(super) fn parse_module(&mut self) -> error::Result<Module> {
         let mut this_module = Module::new();
         let module_name = if self.is_next(TokenValue::Module)? {
             let modid = self.parse_module_name()?;
@@ -25,7 +23,7 @@ impl<'a> ParserState<'a> {
         Ok(this_module)
     }
 
-    fn parse_body(&mut self, module: &mut Module) -> anyhow::Result<()> {
+    fn parse_body(&mut self, module: &mut Module) -> error::Result<()> {
         let brace = self.get_next_token()?;
         let is_virtual = match brace.value {
             TokenValue::LeftBrace => false,
@@ -48,7 +46,7 @@ impl<'a> ParserState<'a> {
         Ok(())
     }
 
-    fn parse_export(&mut self) -> anyhow::Result<Export> {
+    fn parse_export(&mut self) -> error::Result<Export> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
@@ -68,7 +66,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_import_declarations(&mut self) -> anyhow::Result<Vec<ImportDecl>> {
+    fn parse_import_declarations(&mut self) -> error::Result<Vec<ImportDecl>> {
         let mut imports = Vec::new();
         loop {
             if self.is_next(TokenValue::Import)? {
@@ -88,7 +86,7 @@ impl<'a> ParserState<'a> {
         Ok(imports)
     }
 
-    fn parse_import_decl(&mut self) -> anyhow::Result<ImportDecl> {
+    fn parse_import_decl(&mut self) -> error::Result<ImportDecl> {
         let qualified = self.is_next(Token::varid("qualified").value)?;
         let modid = self.parse_module_name()?;
         let mut import = self.new_import_decl(modid);
@@ -108,7 +106,7 @@ impl<'a> ParserState<'a> {
         Ok(import)
     }
 
-    fn parse_import(&mut self) -> anyhow::Result<Import> {
+    fn parse_import(&mut self) -> error::Result<Import> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::QVarId(_, _) | TokenValue::VarId(_) => {
@@ -123,7 +121,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_module_name(&mut self) -> anyhow::Result<Identifier> {
+    fn parse_module_name(&mut self) -> error::Result<Identifier> {
         let mod_tok = self.get_next_token()?;
         match mod_tok.value {
             TokenValue::ConId(s) => Ok(module(&s)),
@@ -137,7 +135,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_exposed_spec(&mut self) -> anyhow::Result<ExposedSpec> {
+    fn parse_exposed_spec(&mut self) -> error::Result<ExposedSpec> {
         if self.is_next(TokenValue::LeftParen)? {
             let tok = self.peek_next_token()?;
             match tok.value {

@@ -1,12 +1,15 @@
 use crate::{
     ast::*,
-    support::{error::RugsError, location::Location},
+    support::{
+        error::{self, RugsError},
+        location::Location,
+    },
 };
 
 use super::{lexing::TokenValue, ParserState};
 
 impl<'a> ParserState<'a> {
-    pub(super) fn expect(&mut self, t: TokenValue) -> anyhow::Result<()> {
+    pub(super) fn expect(&mut self, t: TokenValue) -> error::Result<()> {
         let next = self.get_next_token()?;
         if t != next.value {
             Err(self.error(&format!("expected {:?}, got {:?}", t, next.value)))
@@ -15,7 +18,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn is_next(&mut self, t: TokenValue) -> anyhow::Result<bool> {
+    pub(super) fn is_next(&mut self, t: TokenValue) -> error::Result<bool> {
         let next = self.peek_next_token()?;
         if t == next.value {
             self.get_next_token()?; // Swallow token
@@ -25,7 +28,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn peek_next(&mut self, t: TokenValue) -> anyhow::Result<bool> {
+    pub(super) fn peek_next(&mut self, t: TokenValue) -> error::Result<bool> {
         let next = self.peek_next_token()?;
         if t == next.value {
             Ok(true)
@@ -34,15 +37,15 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn optional_token(&mut self, t: TokenValue) -> anyhow::Result<()> {
+    pub(super) fn optional_token(&mut self, t: TokenValue) -> error::Result<()> {
         self.is_next(t)?;
         Ok(())
     }
 
     pub(super) fn parse_some<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
-    ) -> anyhow::Result<Vec<T>> {
+        inner_parser: &mut impl FnMut(&mut Self) -> error::Result<T>,
+    ) -> error::Result<Vec<T>> {
         let mut output = Vec::new();
         while let Some(res) = self.try_parse(inner_parser)? {
             output.push(res);
@@ -52,8 +55,8 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_some1<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
-    ) -> anyhow::Result<Vec<T>> {
+        inner_parser: &mut impl FnMut(&mut Self) -> error::Result<T>,
+    ) -> error::Result<Vec<T>> {
         let mut output = Vec::new();
         let first = inner_parser(self)?;
         output.push(first);
@@ -65,34 +68,34 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_none<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
-    ) -> anyhow::Result<()> {
+        inner_parser: &mut impl FnMut(&mut Self) -> error::Result<T>,
+    ) -> error::Result<()> {
         match self.try_parse(inner_parser)? {
             Some(_) => Err(self.error("Expected none")),
             None => Ok(()),
         }
     }
 
-    pub(super) fn parse_unit(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_unit(&mut self) -> error::Result<Identifier> {
         self.expect(TokenValue::LeftParen)?;
         self.expect(TokenValue::RightParen)?;
         Ok(conid("()"))
     }
 
-    pub(super) fn parse_empty_list(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_empty_list(&mut self) -> error::Result<Identifier> {
         self.expect(TokenValue::LeftBracket)?;
         self.expect(TokenValue::RightBracket)?;
         Ok(conid("[]"))
     }
 
-    pub(super) fn parse_funcon(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_funcon(&mut self) -> error::Result<Identifier> {
         self.expect(TokenValue::LeftParen)?;
         self.expect(TokenValue::RightArrow)?;
         self.expect(TokenValue::RightParen)?;
         Ok(conid("(->)"))
     }
 
-    pub(super) fn parse_tuplecon(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_tuplecon(&mut self) -> error::Result<Identifier> {
         let mut str = "(,".to_string();
         self.expect(TokenValue::LeftParen)?;
         self.expect(TokenValue::Comma)?;
@@ -106,9 +109,9 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_separated_by<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
+        inner_parser: &mut impl FnMut(&mut Self) -> error::Result<T>,
         separator: TokenValue,
-    ) -> anyhow::Result<Vec<T>> {
+    ) -> error::Result<Vec<T>> {
         let mut output = Vec::new();
         output.push(inner_parser(self)?);
         while self.is_next(separator.clone())? {
@@ -117,11 +120,11 @@ impl<'a> ParserState<'a> {
         Ok(output)
     }
 
-    pub(super) fn optional_semicolon(&mut self) -> anyhow::Result<()> {
+    pub(super) fn optional_semicolon(&mut self) -> error::Result<()> {
         self.optional_token(TokenValue::Semicolon)
     }
 
-    pub(super) fn parse_conid(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_conid(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::ConId(s) => Ok(conid(&s)),
@@ -129,7 +132,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qconid(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qconid(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::ConId(s) => Ok(conid(&s)),
@@ -138,7 +141,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_varid(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_varid(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::VarId(s) => Ok(varid(&s)),
@@ -146,7 +149,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_word(&mut self) -> anyhow::Result<String> {
+    pub(super) fn parse_word(&mut self) -> error::Result<String> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::VarId(s) => Ok(s),
@@ -155,7 +158,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qvarid(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qvarid(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::VarId(s) => Ok(varid(&s)),
@@ -164,7 +167,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_varsym(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_varsym(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::VarSym(s) => Ok(varsym(&s)),
@@ -172,7 +175,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qvarsym(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qvarsym(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::VarSym(s) => Ok(varsym(&s)),
@@ -181,7 +184,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_consym(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_consym(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::ConSym(s) => Ok(consym(&s)),
@@ -189,7 +192,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_gconsym(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_gconsym(&mut self) -> error::Result<Identifier> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::Colon => Ok(consym(":")),
@@ -202,9 +205,9 @@ impl<'a> ParserState<'a> {
     pub(super) fn parse_surrounded_by<T>(
         &mut self,
         before: TokenValue,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
+        inner_parser: &mut impl FnMut(&mut Self) -> error::Result<T>,
         after: TokenValue,
-    ) -> anyhow::Result<T> {
+    ) -> error::Result<T> {
         self.expect(before)?;
         let val = inner_parser(self)?;
         self.expect(after)?;
@@ -213,8 +216,8 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn try_parse<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
-    ) -> anyhow::Result<Option<T>> {
+        inner_parser: &mut impl FnMut(&mut Self) -> error::Result<T>,
+    ) -> error::Result<Option<T>> {
         let start = self.token_pos;
         match inner_parser(self) {
             Ok(res) => Ok(Some(res)),
@@ -227,8 +230,8 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_braced_list<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self, bool) -> anyhow::Result<T>,
-    ) -> anyhow::Result<Vec<T>> {
+        inner_parser: &mut impl FnMut(&mut Self, bool) -> error::Result<T>,
+    ) -> error::Result<Vec<T>> {
         let mut output: Vec<T> = Vec::new();
         let brace = self.get_next_token()?;
         let is_virtual = match brace.value {
@@ -256,8 +259,8 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_paren_list<T>(
         &mut self,
-        inner_parser: &mut impl FnMut(&mut Self) -> anyhow::Result<T>,
-    ) -> anyhow::Result<Vec<T>> {
+        inner_parser: &mut impl FnMut(&mut Self) -> error::Result<T>,
+    ) -> error::Result<Vec<T>> {
         let mut output = Vec::new();
         self.expect(TokenValue::LeftParen)?;
         loop {
@@ -276,7 +279,7 @@ impl<'a> ParserState<'a> {
         Ok(output)
     }
 
-    pub(super) fn parse_var(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_var(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::LeftParen)? {
             let sym = self.parse_varsym()?;
             self.expect(TokenValue::RightParen)?;
@@ -286,7 +289,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qvar(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qvar(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::LeftParen)? {
             let sym = self.parse_qvarsym()?;
             self.expect(TokenValue::RightParen)?;
@@ -296,7 +299,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_con(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_con(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::LeftParen)? {
             let sym = self.parse_consym()?;
             self.expect(TokenValue::RightParen)?;
@@ -306,7 +309,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qcon(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qcon(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::LeftParen)? {
             let sym = self.parse_gconsym()?;
             self.expect(TokenValue::RightParen)?;
@@ -316,7 +319,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_cname(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_cname(&mut self) -> error::Result<Identifier> {
         if let Some(res) = self.try_parse(&mut Self::parse_var)? {
             Ok(res)
         } else {
@@ -325,7 +328,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_varop(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_varop(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::Backtick)? {
             let sym = self.parse_varid()?;
             self.expect(TokenValue::Backtick)?;
@@ -335,7 +338,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qvarop(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qvarop(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::Backtick)? {
             let sym = self.parse_qvarid()?;
             self.expect(TokenValue::Backtick)?;
@@ -345,7 +348,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_conop(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_conop(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::Backtick)? {
             let sym = self.parse_conid()?;
             self.expect(TokenValue::Backtick)?;
@@ -355,7 +358,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qconop(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qconop(&mut self) -> error::Result<Identifier> {
         if self.is_next(TokenValue::Backtick)? {
             let sym = self.parse_qconid()?;
             self.expect(TokenValue::Backtick)?;
@@ -365,7 +368,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_op(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_op(&mut self) -> error::Result<Identifier> {
         if let Some(res) = self.try_parse(&mut Self::parse_varop)? {
             Ok(res)
         } else {
@@ -374,7 +377,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_qop(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_qop(&mut self) -> error::Result<Identifier> {
         if let Some(res) = self.try_parse(&mut Self::parse_qvarop)? {
             Ok(res)
         } else {
@@ -383,7 +386,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_gcon(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_gcon(&mut self) -> error::Result<Identifier> {
         if let Some(res) = self.try_parse(&mut Self::parse_unit)? {
             Ok(res)
         } else if let Some(res) = self.try_parse(&mut Self::parse_empty_list)? {

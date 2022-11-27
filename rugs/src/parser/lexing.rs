@@ -2,19 +2,22 @@ use std::cmp::min;
 
 use crate::{
     ast::*,
-    support::{error::RugsError, location::Location},
+    support::{
+        error::{self, RugsError},
+        location::Location,
+    },
 };
 use num_bigint::BigInt;
 use num_traits::Num;
 
 impl<'a> super::ParserState<'a> {
-    pub(super) fn get_next_token(&mut self) -> anyhow::Result<Token> {
+    pub(super) fn get_next_token(&mut self) -> error::Result<Token> {
         let tok = self.peek_next_token()?;
         self.token_pos += 1;
         Ok(tok)
     }
 
-    pub(super) fn peek_next_token(&mut self) -> anyhow::Result<Token> {
+    pub(super) fn peek_next_token(&mut self) -> error::Result<Token> {
         assert!(self.token_pos <= self.tokens.len());
         while self.token_pos == self.tokens.len() {
             let tok = self.next_token()?;
@@ -27,7 +30,7 @@ impl<'a> super::ParserState<'a> {
         self.token_pos -= min(self.token_pos, n);
     }
 
-    fn layout(&mut self, tok: Token) -> anyhow::Result<()> {
+    fn layout(&mut self, tok: Token) -> error::Result<()> {
         match tok.value {
             TokenValue::Let | TokenValue::Where | TokenValue::Do | TokenValue::Of => {
                 self.layout_start = true;
@@ -92,7 +95,7 @@ impl<'a> super::ParserState<'a> {
         Ok(())
     }
 
-    fn next_token(&mut self) -> anyhow::Result<Token> {
+    fn next_token(&mut self) -> error::Result<Token> {
         if let Some(tok) = self.queue.pop_front() {
             return Ok(tok);
         }
@@ -164,7 +167,7 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn get_string(&mut self) -> anyhow::Result<Token> {
+    fn get_string(&mut self) -> error::Result<Token> {
         let mut result = String::new();
         self.next();
         while let Some((_p, c)) = self.next() {
@@ -195,7 +198,7 @@ impl<'a> super::ParserState<'a> {
         self.lex_error("unterminated string")
     }
 
-    fn get_char(&mut self) -> anyhow::Result<Token> {
+    fn get_char(&mut self) -> error::Result<Token> {
         self.next();
         if let Some((_, c)) = self.next() {
             let ch = match c {
@@ -210,7 +213,7 @@ impl<'a> super::ParserState<'a> {
         self.lex_error("missing ' at end of char literal")
     }
 
-    fn read_escape(&mut self) -> anyhow::Result<char> {
+    fn read_escape(&mut self) -> error::Result<char> {
         let asciis = [
             "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF",
             "CR", "SO", "SI", "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM",
@@ -261,7 +264,7 @@ impl<'a> super::ParserState<'a> {
         Ok(ch)
     }
 
-    fn get_codepoint(&mut self, pred: impl Fn(&char) -> bool, radix: u32) -> anyhow::Result<char> {
+    fn get_codepoint(&mut self, pred: impl Fn(&char) -> bool, radix: u32) -> error::Result<char> {
         let start = self.pos;
         let stop = self.snarf(pred)?;
         let code = u32::from_str_radix(&self.src[start..stop], radix)?;
@@ -272,7 +275,7 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn get_number(&mut self) -> anyhow::Result<Token> {
+    fn get_number(&mut self) -> error::Result<Token> {
         if self.check_prefix("0x") || self.check_prefix("0X") {
             self.advance(2);
             let start = self.pos;
@@ -311,7 +314,7 @@ impl<'a> super::ParserState<'a> {
         Ok(self.token(TokenValue::Integer(bigint)))
     }
 
-    fn get_modcon(&mut self) -> anyhow::Result<Token> {
+    fn get_modcon(&mut self) -> error::Result<Token> {
         let mut qualified = false;
         let mut not_modid = false;
         let mut last_dot = self.pos;
@@ -371,7 +374,7 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn get_varid(&mut self) -> anyhow::Result<Token> {
+    fn get_varid(&mut self) -> error::Result<Token> {
         let start = self.pos;
         let end = self.snarf(|c| is_identifier_char(*c))?;
         let id = &self.src[start..end];
@@ -406,7 +409,7 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn get_symbol(&mut self) -> anyhow::Result<Option<Token>> {
+    fn get_symbol(&mut self) -> error::Result<Option<Token>> {
         let start = self.pos;
         let end = self.snarf(|c| is_symbolic(*c))?;
         let id = &self.src[start..end];
@@ -441,7 +444,7 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn read_block_comment(&mut self) -> anyhow::Result<()> {
+    fn read_block_comment(&mut self) -> error::Result<()> {
         let _start = self.pos;
         // TODO: Collect pragmas and doc comments.
         if self.check_prefix("{-#") {
@@ -464,7 +467,7 @@ impl<'a> super::ParserState<'a> {
         Ok(())
     }
 
-    fn snarf(&mut self, pred: impl Fn(&char) -> bool) -> anyhow::Result<usize> {
+    fn snarf(&mut self, pred: impl Fn(&char) -> bool) -> error::Result<usize> {
         let next = self.chars.peek();
         match next {
             None => return self.lex_error("Unexpected end of input"),
@@ -491,7 +494,7 @@ impl<'a> super::ParserState<'a> {
         self.src[self.pos..].starts_with(what)
     }
 
-    fn peek(&mut self) -> anyhow::Result<char> {
+    fn peek(&mut self) -> error::Result<char> {
         if let Some((_, ch)) = self.chars.peek() {
             Ok(*ch)
         } else {
@@ -525,7 +528,7 @@ impl<'a> super::ParserState<'a> {
         }
     }
 
-    fn lex_error<T>(&self, msg: &str) -> anyhow::Result<T> {
+    fn lex_error<T>(&self, msg: &str) -> error::Result<T> {
         Err(RugsError::Parse {
             msg: msg.to_string(),
             loc: self.location_current_token(),

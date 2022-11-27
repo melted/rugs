@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::{ast::*, support::error};
 
 use super::{
     lexing::{Token, TokenValue},
@@ -6,7 +6,7 @@ use super::{
 };
 
 impl<'a> ParserState<'a> {
-    pub(super) fn parse_pattern(&mut self) -> anyhow::Result<Pattern> {
+    pub(super) fn parse_pattern(&mut self) -> error::Result<Pattern> {
         let lpat = self.parse_lpattern()?;
         if let Some(op) = self.try_parse(&mut Self::parse_qconop)? {
             let rpat = self.parse_pattern()?;
@@ -16,7 +16,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_lpattern(&mut self) -> anyhow::Result<Pattern> {
+    fn parse_lpattern(&mut self) -> error::Result<Pattern> {
         if self.is_next(Token::varsym("-").value)? {
             match self.get_next_token()?.value {
                 TokenValue::Float(f) => Ok(self.pattern(PatternValue::Literal(Const::Float(f)))),
@@ -34,7 +34,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_apattern(&mut self) -> anyhow::Result<Pattern> {
+    pub(super) fn parse_apattern(&mut self) -> error::Result<Pattern> {
         let tok = self.get_next_token()?;
         match tok.value {
             TokenValue::Tilde => {
@@ -91,7 +91,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_pattern_field(&mut self) -> anyhow::Result<(Identifier, Pattern)> {
+    fn parse_pattern_field(&mut self) -> error::Result<(Identifier, Pattern)> {
         let var = self.parse_qvar()?;
         self.expect(TokenValue::Equals)?;
         let pat = self.parse_pattern()?;

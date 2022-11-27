@@ -27,7 +27,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_session(args: &Args, session: Session) -> anyhow::Result<()> {
+fn run_session(args: &Args, session: Session) -> rugs::support::error::Result<()> {
     if args.dump_tokens {
         for (name, code) in &session.source {
             println!("{}\n---\n", name);

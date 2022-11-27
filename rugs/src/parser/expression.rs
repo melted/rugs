@@ -2,10 +2,11 @@ use super::declaration::DeclKind;
 use super::lexing::{Token, TokenValue};
 use super::ParserState;
 use crate::ast::*;
+use crate::support::error;
 use crate::support::names::generate_fresh_name;
 
 impl<'a> ParserState<'a> {
-    pub(super) fn parse_expression(&mut self) -> anyhow::Result<Expression> {
+    pub(super) fn parse_expression(&mut self) -> error::Result<Expression> {
         let exp = self.parse_infix_expression()?;
         if self.is_next(TokenValue::DoubleColon)? {
             let context = self
@@ -18,7 +19,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_infix_expression(&mut self) -> anyhow::Result<Expression> {
+    fn parse_infix_expression(&mut self) -> error::Result<Expression> {
         if self.is_next(Token::varsym("-").value)? {
             let exp = self.parse_expression()?;
             let negate = self.var(varid("-"));
@@ -41,7 +42,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_lexp(&mut self) -> anyhow::Result<Expression> {
+    fn parse_lexp(&mut self) -> error::Result<Expression> {
         let tok = self.peek_next_token()?;
         match tok.value {
             TokenValue::Backslash => self.parse_lambda_expression(),
@@ -53,7 +54,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_fexp(&mut self) -> anyhow::Result<Expression> {
+    fn parse_fexp(&mut self) -> error::Result<Expression> {
         let mut exp = self.parse_aexp()?;
         let aexps = self.parse_some(&mut Self::parse_aexp)?;
         for arg in aexps {
@@ -62,7 +63,7 @@ impl<'a> ParserState<'a> {
         Ok(exp)
     }
 
-    fn parse_aexp(&mut self) -> anyhow::Result<Expression> {
+    fn parse_aexp(&mut self) -> error::Result<Expression> {
         let tok = self.get_next_token()?;
         let tok2 = tok.clone();
         let expr = match tok.value {
@@ -97,7 +98,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_parens_exp(&mut self) -> anyhow::Result<Expression> {
+    fn parse_parens_exp(&mut self) -> error::Result<Expression> {
         let tok = self.peek_next_token()?;
         let exp = match tok.value {
             TokenValue::RightParen => {
@@ -157,7 +158,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_if_expression(&mut self) -> anyhow::Result<Expression> {
+    fn parse_if_expression(&mut self) -> error::Result<Expression> {
         self.expect(TokenValue::If)?;
         let predicate = self.parse_expression()?;
         self.optional_semicolon()?;
@@ -169,7 +170,7 @@ impl<'a> ParserState<'a> {
         Ok(self.if_expression(predicate, then_exp, else_exp))
     }
 
-    fn parse_let_expression(&mut self) -> anyhow::Result<Expression> {
+    fn parse_let_expression(&mut self) -> error::Result<Expression> {
         self.expect(TokenValue::Let)?;
         let decls = self.parse_braced_list(&mut |this, _is_virtual| {
             let res = this.parse_declaration(DeclKind::Normal)?;
@@ -180,7 +181,7 @@ impl<'a> ParserState<'a> {
         Ok(self.let_expression(decls, exp))
     }
 
-    fn parse_lambda_expression(&mut self) -> anyhow::Result<Expression> {
+    fn parse_lambda_expression(&mut self) -> error::Result<Expression> {
         self.expect(TokenValue::Backslash)?;
         let mut args = Vec::new();
         loop {
@@ -194,7 +195,7 @@ impl<'a> ParserState<'a> {
         Ok(self.lambda(args, exp))
     }
 
-    fn parse_case_expression(&mut self) -> anyhow::Result<Expression> {
+    fn parse_case_expression(&mut self) -> error::Result<Expression> {
         self.expect(TokenValue::Case)?;
         let exp = self.parse_expression()?;
         self.expect(TokenValue::Of)?;
@@ -202,13 +203,13 @@ impl<'a> ParserState<'a> {
         Ok(self.case_expression(exp, alts))
     }
 
-    fn parse_do_expression(&mut self) -> anyhow::Result<Expression> {
+    fn parse_do_expression(&mut self) -> error::Result<Expression> {
         self.expect(TokenValue::Do)?;
         let stmts = self.parse_braced_list(&mut |this, _| this.parse_seqsyntax(SeqKind::Do))?;
         Ok(self.do_expression(stmts))
     }
 
-    fn parse_bracket_exp(&mut self) -> anyhow::Result<Expression> {
+    fn parse_bracket_exp(&mut self) -> error::Result<Expression> {
         if let Some((start, step)) = self.try_parse(&mut |this| {
             let first = this.parse_expression()?;
             let step = if this.is_next(TokenValue::Comma)? {
@@ -261,7 +262,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    fn parse_case_alt(&mut self, _is_virtual: bool) -> anyhow::Result<CaseAlt> {
+    fn parse_case_alt(&mut self, _is_virtual: bool) -> error::Result<CaseAlt> {
         let pat = self.parse_pattern()?;
         if self.is_next(TokenValue::RightArrow)? {
             let exp = self.parse_expression()?;
@@ -272,14 +273,14 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_case_guarded(&mut self) -> anyhow::Result<GuardedExpression> {
+    pub(super) fn parse_case_guarded(&mut self) -> error::Result<GuardedExpression> {
         let guards = self.parse_guards()?;
         self.expect(TokenValue::RightArrow)?;
         let exp = self.parse_expression()?;
         Ok(GuardedExpression { guards, body: exp })
     }
 
-    pub(super) fn parse_seqsyntax(&mut self, kind: SeqKind) -> anyhow::Result<SeqSyntax> {
+    pub(super) fn parse_seqsyntax(&mut self, kind: SeqKind) -> error::Result<SeqSyntax> {
         let expfn = if kind == SeqKind::Guard {
             |this: &mut ParserState| this.parse_infix_expression()
         } else {
@@ -306,11 +307,11 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_record_expression(
         &mut self,
-    ) -> anyhow::Result<Vec<(Identifier, Expression)>> {
+    ) -> error::Result<Vec<(Identifier, Expression)>> {
         self.parse_separated_by(&mut Self::parse_record_field, TokenValue::Comma)
     }
 
-    pub(super) fn parse_record_field(&mut self) -> anyhow::Result<(Identifier, Expression)> {
+    pub(super) fn parse_record_field(&mut self) -> error::Result<(Identifier, Expression)> {
         let var = self.parse_qvar()?;
         self.expect(TokenValue::Equals)?;
         let exp = self.parse_expression()?;

@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use crate::support::error;
+
 use super::lexing::{Token, TokenValue};
 use super::{parse, parse_expression, ParserState};
 
@@ -9,7 +11,7 @@ fn parse_empty_string() {
     assert!(result.is_ok());
 }
 
-fn get_tokens(state: &mut ParserState) -> anyhow::Result<Vec<Token>> {
+fn get_tokens(state: &mut ParserState) -> error::Result<Vec<Token>> {
     let mut out = Vec::new();
     loop {
         let t = state.get_next_token()?;

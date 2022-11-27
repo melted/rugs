@@ -16,9 +16,10 @@ use log::info;
 
 use self::lexing::{Token, TokenValue};
 use crate::ast::{AstMaker, Metadata, Module, NodeId, TopExpression};
+use crate::support::error;
 use crate::support::{error::RugsError, location::Location};
 
-pub fn parse(file_name: Option<&str>, code: &str) -> anyhow::Result<Module> {
+pub fn parse(file_name: Option<&str>, code: &str) -> error::Result<Module> {
     info!("Parsing module from {}", file_name.unwrap_or("unnamed"));
     let mut state = ParserState::new(code);
     state.metadata.file = file_name.map(|f| f.to_string());
@@ -27,7 +28,7 @@ pub fn parse(file_name: Option<&str>, code: &str) -> anyhow::Result<Module> {
     Ok(module)
 }
 
-pub fn parse_expression(expr: &str) -> anyhow::Result<TopExpression> {
+pub fn parse_expression(expr: &str) -> error::Result<TopExpression> {
     info!("Parsing expression");
     let mut state = ParserState::new(expr);
     state.layout_start = false;
@@ -38,7 +39,7 @@ pub fn parse_expression(expr: &str) -> anyhow::Result<TopExpression> {
     })
 }
 
-pub fn dump_tokens(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
+pub fn dump_tokens(code: &str, output: &mut impl Write) -> error::Result<()> {
     let mut state = ParserState::new(code);
     info!("Dumping tokens from lexer");
     loop {
@@ -51,17 +52,17 @@ pub fn dump_tokens(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn dump_ast(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
+pub fn dump_ast(code: &str, output: &mut impl Write) -> error::Result<()> {
     let module = parse(None, code)?;
     info!("Dumping module AST");
-    writeln!(output, "{:?}", module)?;
+    writeln!(output, "{:?}", module);
     Ok(())
 }
 
-pub fn dump_ast_expression(code: &str, output: &mut impl Write) -> anyhow::Result<()> {
+pub fn dump_ast_expression(code: &str, output: &mut impl Write) -> error::Result<()> {
     let exp = parse_expression(code)?;
     info!("Dumping expression AST");
-    writeln!(output, "{:?}", exp)?;
+    writeln!(output, "{:?}", exp);
     Ok(())
 }
 
@@ -99,7 +100,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(self) fn error(&self, msg: &str) -> anyhow::Error {
+    pub(self) fn error(&self, msg: &str) -> RugsError {
         RugsError::Parse {
             msg: msg.to_string(),
             loc: Location::Offset {
@@ -107,7 +108,6 @@ impl<'a> ParserState<'a> {
                 end: self.pos,
             },
         }
-        .into()
     }
 }
 

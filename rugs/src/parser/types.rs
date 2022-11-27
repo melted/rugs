@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::{ast::*, support::error};
 
 use super::{
     declaration::DeclKind,
@@ -7,7 +7,7 @@ use super::{
 };
 
 impl<'a> ParserState<'a> {
-    pub(super) fn parse_class(&mut self) -> anyhow::Result<Class> {
+    pub(super) fn parse_class(&mut self) -> error::Result<Class> {
         self.expect(TokenValue::Class)?;
         let context = self
             .try_parse(&mut |this| this.parse_context(true))?
@@ -25,7 +25,7 @@ impl<'a> ParserState<'a> {
         Ok(class)
     }
 
-    pub(super) fn parse_data(&mut self) -> anyhow::Result<Data> {
+    pub(super) fn parse_data(&mut self) -> error::Result<Data> {
         self.expect(TokenValue::Data)?;
         let the_type = self.parse_simpletype()?;
         let mut data = self.new_data(the_type);
@@ -41,7 +41,7 @@ impl<'a> ParserState<'a> {
         Ok(data)
     }
 
-    pub(super) fn parse_newtype(&mut self) -> anyhow::Result<Newtype> {
+    pub(super) fn parse_newtype(&mut self) -> error::Result<Newtype> {
         self.expect(TokenValue::Newtype)?;
         let the_type = self.parse_simpletype()?;
         self.expect(TokenValue::Equals)?;
@@ -55,7 +55,7 @@ impl<'a> ParserState<'a> {
         Ok(newtype)
     }
 
-    pub(super) fn parse_type_decl(&mut self) -> anyhow::Result<TypeDecl> {
+    pub(super) fn parse_type_decl(&mut self) -> error::Result<TypeDecl> {
         self.expect(TokenValue::Type)?;
         let this_type = self.parse_simpletype()?;
         self.expect(TokenValue::Equals)?;
@@ -63,7 +63,7 @@ impl<'a> ParserState<'a> {
         Ok(self.new_typedecl(this_type, that_type))
     }
 
-    pub(super) fn parse_type(&mut self) -> anyhow::Result<Type> {
+    pub(super) fn parse_type(&mut self) -> error::Result<Type> {
         let mut the_type = self.parse_btype()?;
         if self.is_next(TokenValue::RightArrow)? {
             let res = self.parse_type()?;
@@ -72,7 +72,7 @@ impl<'a> ParserState<'a> {
         Ok(the_type)
     }
 
-    pub(super) fn parse_btype(&mut self) -> anyhow::Result<Type> {
+    pub(super) fn parse_btype(&mut self) -> error::Result<Type> {
         let mut the_type = self.parse_atype()?;
         let arg_types = self.parse_some(&mut Self::parse_atype)?;
         for t in arg_types {
@@ -81,7 +81,7 @@ impl<'a> ParserState<'a> {
         Ok(the_type)
     }
 
-    pub(super) fn parse_atype(&mut self) -> anyhow::Result<Type> {
+    pub(super) fn parse_atype(&mut self) -> error::Result<Type> {
         if let Some(res) = self.try_parse(&mut Self::parse_gtycon)? {
             Ok(Type::base(res))
         } else if let Some(res) = self.try_parse(&mut Self::parse_varid)? {
@@ -107,7 +107,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_simpletype(&mut self) -> anyhow::Result<Type> {
+    pub(super) fn parse_simpletype(&mut self) -> error::Result<Type> {
         let tycon = self.parse_conid()?;
         let tyvars = self.parse_some(&mut Self::parse_varid)?;
         let mut the_type = Type::base(tycon);
@@ -117,7 +117,7 @@ impl<'a> ParserState<'a> {
         Ok(the_type)
     }
 
-    pub(super) fn parse_gtycon(&mut self) -> anyhow::Result<Identifier> {
+    pub(super) fn parse_gtycon(&mut self) -> error::Result<Identifier> {
         if let Some(res) = self.try_parse(&mut Self::parse_qcon)? {
             Ok(res)
         } else if let Some(res) = self.try_parse(&mut Self::parse_unit)? {
@@ -133,7 +133,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_constructor(&mut self) -> anyhow::Result<Constructor> {
+    pub(super) fn parse_constructor(&mut self) -> error::Result<Constructor> {
         if let Some(res) = self.try_parse(&mut Self::parse_prefix_constructor)? {
             Ok(res)
         } else if let Some(res) = self.try_parse(&mut Self::parse_infix_constructor)? {
@@ -143,8 +143,8 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_infix_constructor(&mut self) -> anyhow::Result<Constructor> {
-        fn get_type(this: &mut ParserState) -> anyhow::Result<(bool, Type)> {
+    pub(super) fn parse_infix_constructor(&mut self) -> error::Result<Constructor> {
+        fn get_type(this: &mut ParserState) -> error::Result<(bool, Type)> {
             if this.is_next(Token::varsym("!").value)? {
                 this.parse_atype().map(|t| (true, t))
             } else {
@@ -160,7 +160,7 @@ impl<'a> ParserState<'a> {
         })
     }
 
-    pub(super) fn parse_prefix_constructor(&mut self) -> anyhow::Result<Constructor> {
+    pub(super) fn parse_prefix_constructor(&mut self) -> error::Result<Constructor> {
         let con = self.parse_con()?;
         if self.is_next(TokenValue::LeftBrace)? {
             let raw =
@@ -184,7 +184,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_field_declaration(&mut self) -> anyhow::Result<Vec<TypeField>> {
+    pub(super) fn parse_field_declaration(&mut self) -> error::Result<Vec<TypeField>> {
         let vars = self.parse_separated_by(&mut Self::parse_var, TokenValue::Comma)?;
         self.expect(TokenValue::DoubleColon)?;
         let is_strict = self.is_next(Token::varsym("!").value)?;
@@ -204,7 +204,7 @@ impl<'a> ParserState<'a> {
         Ok(output)
     }
 
-    pub(super) fn parse_newtype_constructor(&mut self) -> anyhow::Result<Constructor> {
+    pub(super) fn parse_newtype_constructor(&mut self) -> error::Result<Constructor> {
         let con = self.parse_con()?;
         if self.is_next(TokenValue::LeftBrace)? {
             let var = self.parse_var()?;
@@ -226,7 +226,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_deriving(&mut self) -> anyhow::Result<Vec<Identifier>> {
+    pub(super) fn parse_deriving(&mut self) -> error::Result<Vec<Identifier>> {
         if self.is_next(TokenValue::LeftParen)? {
             let classes = self.parse_separated_by(&mut Self::parse_qconid, TokenValue::Comma)?;
             self.expect(TokenValue::RightParen)?;
@@ -237,7 +237,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_instance(&mut self) -> anyhow::Result<Instance> {
+    pub(super) fn parse_instance(&mut self) -> error::Result<Instance> {
         self.expect(TokenValue::Instance)?;
         let context = self
             .try_parse(&mut |this| this.parse_context(true))?
@@ -290,7 +290,7 @@ impl<'a> ParserState<'a> {
         Ok(instance)
     }
 
-    pub(super) fn parse_foreign_declaration(&mut self) -> anyhow::Result<Foreign> {
+    pub(super) fn parse_foreign_declaration(&mut self) -> error::Result<Foreign> {
         self.expect(TokenValue::Foreign)?;
         if self.is_next(Token::varid("import").value)? {
             let callconv = self.parse_word()?;
@@ -327,7 +327,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_ftype(&mut self) -> anyhow::Result<Type> {
+    pub(super) fn parse_ftype(&mut self) -> error::Result<Type> {
         if self.is_next(TokenValue::LeftParen)? {
             self.expect(TokenValue::RightParen)?;
             // TODO: Error if right arrow next
@@ -347,7 +347,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_safety(&mut self) -> anyhow::Result<Option<Safety>> {
+    pub(super) fn parse_safety(&mut self) -> error::Result<Option<Safety>> {
         if self.is_next(Token::varid("safe").value)? {
             Ok(Some(Safety::Safe))
         } else if self.is_next(Token::varid("unsafe").value)? {
@@ -357,7 +357,7 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_context(&mut self, simple: bool) -> anyhow::Result<Context> {
+    pub(super) fn parse_context(&mut self, simple: bool) -> error::Result<Context> {
         if self.is_next(TokenValue::LeftParen)? {
             let classes = self.parse_separated_by(
                 &mut |this| this.parse_context_class(simple),
@@ -378,7 +378,7 @@ impl<'a> ParserState<'a> {
     pub(super) fn parse_context_class(
         &mut self,
         simple: bool,
-    ) -> anyhow::Result<(Identifier, Vec<Type>)> {
+    ) -> error::Result<(Identifier, Vec<Type>)> {
         let tycls = self.parse_qconid()?;
         let args = if !simple && self.is_next(TokenValue::LeftParen)? {
             self.parse_some(&mut Self::parse_atype)?

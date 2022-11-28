@@ -41,6 +41,9 @@ impl<'a> ParserState<'a> {
         } else {
             self.expect(TokenValue::RightBrace)?;
         }
+        for d in &decls {
+            module.names.extend(d.names()?.into_iter());
+        }
         module.declarations = decls;
         module.imports = imports;
         Ok(())
@@ -96,13 +99,14 @@ impl<'a> ParserState<'a> {
             import.alias = Some(alias);
         }
         let hiding = self.is_next(Token::varid("hiding").value)?;
-        if self.peek_next(TokenValue::LeftParen)? {
+        import.spec = if self.peek_next(TokenValue::LeftParen)? {
             let impspec = self.parse_paren_list(&mut Self::parse_import)?;
-            import.import_list = impspec;
-            import.hidden = hiding;
+            if hiding { ImportSpec::Hide(impspec) } else { ImportSpec::Only(impspec) }
         } else if hiding {
             return Err(self.error("No list after `hiding`"));
-        }
+        } else {
+            ImportSpec::All
+        };
         Ok(import)
     }
 

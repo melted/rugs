@@ -1,6 +1,12 @@
 use num_bigint::BigInt;
 
 type Name = String;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Var {
+    name : Name,
+    ty : Type
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Binding {
@@ -22,6 +28,7 @@ pub enum Expression {
     },
     Case {
         scrutinee: Box<Expression>,
+        sc_name : Name,
         ty: Type,
         alts: Vec<CaseAlt>,
     },

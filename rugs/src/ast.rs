@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use num_bigint::BigInt;
 
-use crate::support::location::Location;
+use crate::support::{location::Location, error};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Metadata {
@@ -22,6 +22,7 @@ pub struct Module {
     pub imports: Vec<ImportDecl>,
     pub exports: Option<Vec<Export>>,
     pub declarations: Vec<TopDeclaration>,
+    pub names: HashSet<String>
 }
 
 impl Module {
@@ -32,6 +33,7 @@ impl Module {
             imports: Vec::new(),
             exports: None,
             declarations: Vec::new(),
+            names: HashSet::new()
         }
     }
 }
@@ -61,13 +63,19 @@ pub struct TopExpression {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum ImportSpec {
+    All,
+    Hide(Vec<Import>),
+    Only(Vec<Import>)
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImportDecl {
     pub id: NodeId,
     pub name: Identifier,
     pub qualified: bool,
     pub alias: Option<Identifier>,
-    pub import_list: Vec<Import>,
-    pub hidden: bool,
+    pub spec: ImportSpec
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,12 +117,33 @@ pub enum TopDeclaration {
     Declaration(Declaration),
 }
 
+impl TopDeclaration {
+    pub fn names(&self) -> error::Result<Vec<String>> {
+        match self {
+            TopDeclaration::Type(decl) => Ok(vec![decl.name.name.clone()]),
+            TopDeclaration::Class(decl) => Ok(vec![decl.tycls.name.clone()]),
+            TopDeclaration::Data(decl) => Ok(vec![decl.name.name.clone()]),
+            TopDeclaration::Foreign(foreign) => match &foreign.decl {
+                ForeignDeclaration::Export { var: x,.. } => Ok(vec![x.name.clone()]),
+                ForeignDeclaration::Import { var: x,.. } => Ok(vec![x.name.clone()])
+            }
+            TopDeclaration::Newtype(newt) => Ok(vec![newt.name.name.clone()]),
+            TopDeclaration::Declaration(decl) => match &decl.value {
+                DeclarationValue::PatBind(pb, _) => Ok(pb.vars()),
+                _ => Ok(vec![decl.name.name.clone()])
+            } 
+            _ => Ok(Vec::new())
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeCon {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeDecl {
     id: NodeId,
+    name: Identifier,
     alias: Type,
     the_type: Type,
 }
@@ -122,6 +151,7 @@ pub struct TypeDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Data {
     pub id: NodeId,
+    pub name: Identifier,
     pub this_type: Type,
     pub constructors: Vec<Constructor>,
     pub deriving: Vec<Identifier>,
@@ -130,6 +160,7 @@ pub struct Data {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Newtype {
     pub id: NodeId,
+    pub name: Identifier,
     pub this_type: Type,
     pub constructor: Constructor,
     pub deriving: Vec<Identifier>,
@@ -204,17 +235,24 @@ pub enum ForeignDeclaration {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
     pub id: NodeId,
+    pub name: Identifier,
     pub value: DeclarationValue,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeclarationValue {
-    TypeSignature(Vec<Identifier>, Option<Context>, Type),
-    Fixity(Vec<Identifier>, Association, u32),
+    TypeSignature(Identifier, Context, Type),
+    Fixity(Identifier, Association, u32),
     VarBind(Identifier, Binding),
     PatBind(Pattern, Binding),
     FunBind(FunBind, Binding),
     Empty,
+}
+
+impl DeclarationValue {
+    fn names(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -298,6 +336,15 @@ impl Type {
     pub(super) fn fun(self, rhs: Type) -> Type {
         Type::Fun(Box::new(self), Box::new(rhs))
     }
+
+    pub(super) fn get_base_name(&self) -> Option<String> {
+        match self {
+            Type::Base(n) => Some(n.name.clone()),
+            Type::Simple { base, tyvars } => Some(base.name.clone()),
+            Type::App(f, _) => f.get_base_name(),
+            _ => None
+        }
+    } 
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -381,6 +428,28 @@ pub enum PatternValue {
     Wrapped(Pattern),
 }
 
+impl Pattern {
+    
+    fn vars(&self) -> Vec<String> {
+        struct VarCounter {
+            pub vars : HashSet<String>
+        }
+
+        impl AstVisitor for VarCounter {
+            fn on_pattern(&mut self, pat: &Pattern) {
+                match &*pat.value {
+                    PatternValue::As(id, _) |
+                    PatternValue::Var(id) => { self.vars.insert(id.name.clone()); },
+                    _ => ()
+                }
+            }
+        }
+        let mut var_counter = VarCounter { vars: HashSet::new() };
+        self.visit(&mut var_counter);
+        var_counter.vars.into_iter().collect()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identifier {
     module: Option<String>,
@@ -410,8 +479,7 @@ pub trait AstMaker {
             name,
             qualified: false,
             alias: None,
-            import_list: Vec::new(),
-            hidden: false,
+            spec: ImportSpec::All
         }
     }
 
@@ -431,27 +499,30 @@ pub trait AstMaker {
         }
     }
 
-    fn new_data(&mut self, the_type: Type) -> Data {
+    fn new_data(&mut self, name: Identifier, the_type: Type) -> Data {
         Data {
             id: self.next_id(),
+            name,
             this_type: the_type,
             constructors: Vec::new(),
             deriving: Vec::new(),
         }
     }
 
-    fn new_newtype(&mut self, the_type: Type, constructor: Constructor) -> Newtype {
+    fn new_newtype(&mut self, name:Identifier, the_type: Type, constructor: Constructor) -> Newtype {
         Newtype {
             id: self.next_id(),
+            name,
             this_type: the_type,
             constructor,
             deriving: Vec::new(),
         }
     }
 
-    fn new_typedecl(&mut self, this_type: Type, that_type: Type) -> TypeDecl {
+    fn new_typedecl(&mut self, name:Identifier, this_type: Type, that_type: Type) -> TypeDecl {
         TypeDecl {
             id: self.next_id(),
+            name,
             alias: this_type,
             the_type: that_type,
         }
@@ -474,9 +545,10 @@ pub trait AstMaker {
         }
     }
 
-    fn new_declaration(&mut self, decl: DeclarationValue) -> Declaration {
+    fn new_declaration(&mut self, name:Identifier, decl: DeclarationValue) -> Declaration {
         Declaration {
             id: self.next_id(),
+            name,
             value: decl,
         }
     }

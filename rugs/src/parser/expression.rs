@@ -178,7 +178,7 @@ impl<'a> ParserState<'a> {
         })?;
         self.expect(TokenValue::In)?;
         let exp = self.parse_expression()?;
-        Ok(self.let_expression(decls, exp))
+        Ok(self.let_expression(decls.into_iter().flatten().collect(), exp))
     }
 
     fn parse_lambda_expression(&mut self) -> error::Result<Expression> {
@@ -289,7 +289,7 @@ impl<'a> ParserState<'a> {
         if self.is_next(TokenValue::Let)? {
             let decls =
                 self.parse_braced_list(&mut |this, _| this.parse_declaration(DeclKind::Normal))?;
-            Ok(SeqSyntax::Decls(decls))
+            Ok(SeqSyntax::Decls(decls.into_iter().flatten().collect()))
         } else if let Some(pat) = self.try_parse(&mut |this| {
             let pat = this.parse_pattern()?;
             this.expect(TokenValue::LeftArrow)?;

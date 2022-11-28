@@ -55,14 +55,14 @@ pub fn dump_tokens(code: &str, output: &mut impl Write) -> error::Result<()> {
 pub fn dump_ast(code: &str, output: &mut impl Write) -> error::Result<()> {
     let module = parse(None, code)?;
     info!("Dumping module AST");
-    writeln!(output, "{:?}", module);
+    writeln!(output, "{:?}", module)?;
     Ok(())
 }
 
 pub fn dump_ast_expression(code: &str, output: &mut impl Write) -> error::Result<()> {
     let exp = parse_expression(code)?;
     info!("Dumping expression AST");
-    writeln!(output, "{:?}", exp);
+    writeln!(output, "{:?}", exp)?;
     Ok(())
 }
 

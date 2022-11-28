@@ -1,40 +1,18 @@
-use std::num::{ParseFloatError, ParseIntError};
-
 use super::location::Location;
-use num_bigint::ParseBigIntError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RugsError {
     #[error("Parsing error: {} at {}.", msg, loc)]
     Parse { msg: String, loc: Location },
+    #[error("IO error: {}", err)]
+    IO { err: std::io::Error }
 }
 
 pub type Result<T> = std::result::Result<T, RugsError>;
 
-impl From<ParseIntError> for RugsError {
-    fn from(value: ParseIntError) -> Self {
-        RugsError::Parse {
-            msg: "Failed to parse int".to_string(),
-            loc: Location::Unlocated,
-        }
-    }
-}
-
-impl From<ParseBigIntError> for RugsError {
-    fn from(value: ParseBigIntError) -> Self {
-        RugsError::Parse {
-            msg: "Failed to parse bigint".to_string(),
-            loc: Location::Unlocated,
-        }
-    }
-}
-
-impl From<ParseFloatError> for RugsError {
-    fn from(value: ParseFloatError) -> Self {
-        RugsError::Parse {
-            msg: "Failed to parse float".to_string(),
-            loc: Location::Unlocated,
-        }
+impl From<std::io::Error> for RugsError {
+    fn from(value: std::io::Error) -> Self {
+        RugsError::IO { err: value }
     }
 }

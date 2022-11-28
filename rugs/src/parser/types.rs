@@ -18,7 +18,7 @@ impl<'a> ParserState<'a> {
         if self.is_next(TokenValue::Where)? {
             let decls =
                 self.parse_braced_list(&mut |this, _| this.parse_declaration(DeclKind::Class))?;
-            class.decls = decls;
+            class.decls = decls.into_iter().flatten().collect();
         }
         class.context = context;
         class.tyvars.push(var);
@@ -27,8 +27,8 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_data(&mut self) -> error::Result<Data> {
         self.expect(TokenValue::Data)?;
-        let the_type = self.parse_simpletype()?;
-        let mut data = self.new_data(the_type);
+        let (conid, the_type) = self.parse_simpletype()?;
+        let mut data = self.new_data(conid, the_type);
         if self.is_next(TokenValue::Equals)? {
             data.constructors =
                 self.parse_separated_by(&mut Self::parse_constructor, TokenValue::Bar)?;
@@ -43,10 +43,10 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_newtype(&mut self) -> error::Result<Newtype> {
         self.expect(TokenValue::Newtype)?;
-        let the_type = self.parse_simpletype()?;
+        let (conid, the_type) = self.parse_simpletype()?;
         self.expect(TokenValue::Equals)?;
         let constructor = self.parse_newtype_constructor()?;
-        let mut newtype = self.new_newtype(the_type, constructor);
+        let mut newtype = self.new_newtype(conid, the_type, constructor);
         newtype.deriving = if self.is_next(TokenValue::Deriving)? {
             self.parse_deriving()?
         } else {
@@ -57,10 +57,10 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_type_decl(&mut self) -> error::Result<TypeDecl> {
         self.expect(TokenValue::Type)?;
-        let this_type = self.parse_simpletype()?;
+        let (conid, this_type) = self.parse_simpletype()?;
         self.expect(TokenValue::Equals)?;
         let that_type = self.parse_type()?;
-        Ok(self.new_typedecl(this_type, that_type))
+        Ok(self.new_typedecl(conid, this_type, that_type))
     }
 
     pub(super) fn parse_type(&mut self) -> error::Result<Type> {
@@ -107,14 +107,14 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_simpletype(&mut self) -> error::Result<Type> {
+    pub(super) fn parse_simpletype(&mut self) -> error::Result<(Identifier, Type)> {
         let tycon = self.parse_conid()?;
         let tyvars = self.parse_some(&mut Self::parse_varid)?;
-        let mut the_type = Type::base(tycon);
+        let mut the_type = Type::base(tycon.clone());
         for v in tyvars {
             the_type = the_type.app(Type::var(v));
         }
-        Ok(the_type)
+        Ok((tycon, the_type))
     }
 
     pub(super) fn parse_gtycon(&mut self) -> error::Result<Identifier> {
@@ -285,7 +285,7 @@ impl<'a> ParserState<'a> {
         if self.is_next(TokenValue::Where)? {
             let decls =
                 self.parse_braced_list(&mut |this, _| this.parse_declaration(DeclKind::Instance))?;
-            instance.decls = decls;
+            instance.decls = decls.into_iter().flatten().collect();
         }
         Ok(instance)
     }

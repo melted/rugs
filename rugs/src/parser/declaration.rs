@@ -17,8 +17,8 @@ impl<'a> ParserState<'a> {
             _t => {}
         }
         loop {
-            let decl = self.parse_top_declaration()?;
-            decls.push(decl);
+            let mut top = self.parse_top_declaration()?;
+            decls.append(&mut top);
             let tok = self.peek_next_token()?;
             match tok.value {
                 TokenValue::Semicolon => {
@@ -35,26 +35,27 @@ impl<'a> ParserState<'a> {
         Ok(decls)
     }
 
-    pub(super) fn parse_top_declaration(&mut self) -> error::Result<TopDeclaration> {
+    pub(super) fn parse_top_declaration(&mut self) -> error::Result<Vec<TopDeclaration>> {
         let tok = self.peek_next_token()?;
         match tok.value {
-            TokenValue::Type => Ok(TopDeclaration::Type(self.parse_type_decl()?)),
-            TokenValue::Data => Ok(TopDeclaration::Data(self.parse_data()?)),
-            TokenValue::Newtype => Ok(TopDeclaration::Newtype(self.parse_newtype()?)),
-            TokenValue::Class => Ok(TopDeclaration::Class(self.parse_class()?)),
-            TokenValue::Instance => Ok(TopDeclaration::Instance(self.parse_instance()?)),
-            TokenValue::Default => Ok(TopDeclaration::Default(self.parse_default_declaration()?)),
-            TokenValue::Foreign => Ok(TopDeclaration::Foreign(self.parse_foreign_declaration()?)),
-            _ => Ok(TopDeclaration::Declaration(
-                self.parse_declaration(DeclKind::Normal)?,
-            )),
+            TokenValue::Type => Ok(vec![TopDeclaration::Type(self.parse_type_decl()?)]),
+            TokenValue::Data => Ok(vec![TopDeclaration::Data(self.parse_data()?)]),
+            TokenValue::Newtype => Ok(vec![TopDeclaration::Newtype(self.parse_newtype()?)]),
+            TokenValue::Class => Ok(vec![TopDeclaration::Class(self.parse_class()?)]),
+            TokenValue::Instance => Ok(vec![TopDeclaration::Instance(self.parse_instance()?)]),
+            TokenValue::Default => Ok(vec![TopDeclaration::Default(self.parse_default_declaration()?)]),
+            TokenValue::Foreign => Ok(vec![TopDeclaration::Foreign(self.parse_foreign_declaration()?)]),
+            _ => {
+                let decls = self.parse_declaration(DeclKind::Normal)?;
+                Ok(decls.into_iter().map(|d| TopDeclaration::Declaration(d)).collect())
+            },
         }
     }
 
-    pub(super) fn parse_declaration(&mut self, decl_kind: DeclKind) -> error::Result<Declaration> {
+    pub(super) fn parse_declaration(&mut self, decl_kind: DeclKind) -> error::Result<Vec<Declaration>> {
         match &self.peek_next_token()?.value {
             TokenValue::Semicolon | TokenValue::VirtualRightBrace | TokenValue::RightBrace => {
-                return Ok(self.new_declaration(DeclarationValue::Empty))
+                return Ok(vec![])
             }
             _ => (),
         };
@@ -64,9 +65,10 @@ impl<'a> ParserState<'a> {
                 this.expect(TokenValue::DoubleColon)?;
                 Ok(vars)
             })? {
-                let context = self.try_parse(&mut |this| this.parse_context(false))?;
+                let context = self.try_parse(&mut |this| this.parse_context(false))?.unwrap_or_default();
                 let ty = self.parse_type()?;
-                return Ok(self.new_declaration(DeclarationValue::TypeSignature(vars, context, ty)));
+
+                return Ok(vars.into_iter().map(|v| self.new_declaration(v.clone(), DeclarationValue::TypeSignature(v, context.clone(), ty.clone()))).collect());
             }
             if matches!(
                 self.peek_next_token()?.value,
@@ -75,21 +77,21 @@ impl<'a> ParserState<'a> {
                 return self.parse_fixity_declaration();
             }
         }
-        if let Some(fun) = self.try_parse(&mut Self::parse_function_lhs)? {
+        if let Some((n, fun)) = self.try_parse(&mut Self::parse_function_lhs)? {
             let bind = self.parse_function_rhs()?;
-            Ok(self.new_declaration(DeclarationValue::FunBind(fun, bind)))
+            Ok(vec![self.new_declaration(n, DeclarationValue::FunBind(fun, bind))])
         } else if decl_kind == DeclKind::Normal {
             let pat = self.parse_pattern()?;
             let bind = self.parse_function_rhs()?;
-            Ok(self.new_declaration(DeclarationValue::PatBind(pat, bind)))
+            Ok(vec![self.new_declaration(varid(""), DeclarationValue::PatBind(pat, bind))])
         } else {
             let var = self.parse_var()?;
             let bind = self.parse_function_rhs()?;
-            Ok(self.new_declaration(DeclarationValue::VarBind(var, bind)))
+            Ok(vec![self.new_declaration(var.clone(), DeclarationValue::VarBind(var, bind))])
         }
     }
 
-    pub(super) fn parse_function_lhs(&mut self) -> error::Result<FunBind> {
+    pub(super) fn parse_function_lhs(&mut self) -> error::Result<(Identifier, FunBind)> {
         if let Some(fun) = self.try_parse(&mut Self::parse_function_prefix)? {
             Ok(fun)
         } else if let Some(fun) = self.try_parse(&mut Self::parse_function_infix)? {
@@ -101,25 +103,25 @@ impl<'a> ParserState<'a> {
         }
     }
 
-    pub(super) fn parse_function_prefix(&mut self) -> error::Result<FunBind> {
+    pub(super) fn parse_function_prefix(&mut self) -> error::Result<(Identifier, FunBind)> {
         let var = self.parse_var()?;
         let pats = self.parse_some1(&mut Self::parse_apattern)?;
-        Ok(FunBind::Plain(var, pats))
+        Ok((var.clone(), FunBind::Plain(var, pats)))
     }
 
-    pub(super) fn parse_function_infix(&mut self) -> error::Result<FunBind> {
+    pub(super) fn parse_function_infix(&mut self) -> error::Result<(Identifier, FunBind)> {
         let lhs = self.parse_pattern()?;
         let op = self.parse_varop()?;
         let rhs = self.parse_pattern()?;
-        Ok(FunBind::Op(op, lhs, rhs))
+        Ok((op.clone(), FunBind::Op(op, lhs, rhs)))
     }
 
-    pub(super) fn parse_function_wrapped(&mut self) -> error::Result<FunBind> {
+    pub(super) fn parse_function_wrapped(&mut self) -> error::Result<(Identifier, FunBind)> {
         self.expect(TokenValue::LeftParen)?;
-        let fun = self.parse_function_lhs()?;
+        let (n, fun) = self.parse_function_lhs()?;
         self.expect(TokenValue::RightParen)?;
         let pats = self.parse_some1(&mut Self::parse_apattern)?;
-        Ok(FunBind::Wrapped(Box::new(fun), pats))
+        Ok((n, FunBind::Wrapped(Box::new(fun), pats)))
     }
 
     pub(super) fn parse_function_rhs(&mut self) -> error::Result<Binding> {
@@ -136,7 +138,7 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_optional_where(&mut self) -> error::Result<Vec<Declaration>> {
         if self.is_next(TokenValue::Where)? {
-            self.parse_some1(&mut |this| this.parse_declaration(DeclKind::Normal))
+            Ok(self.parse_some1(&mut |this| this.parse_declaration(DeclKind::Normal))?.into_iter().flatten().collect())
         } else {
             Ok(Vec::new())
         }
@@ -162,7 +164,7 @@ impl<'a> ParserState<'a> {
         self.parse_paren_list(&mut Self::parse_type)
     }
 
-    pub(super) fn parse_fixity_declaration(&mut self) -> error::Result<Declaration> {
+    pub(super) fn parse_fixity_declaration(&mut self) -> error::Result<Vec<Declaration>> {
         let assoc = match self.get_next_token()?.value {
             TokenValue::Infix => Association::NonAssociative,
             TokenValue::Infixl => Association::Left,
@@ -180,6 +182,6 @@ impl<'a> ParserState<'a> {
             _ => 9,
         };
         let ops = self.parse_separated_by(&mut Self::parse_op, TokenValue::Comma)?;
-        Ok(self.new_declaration(DeclarationValue::Fixity(ops, assoc, prec)))
+        Ok(ops.into_iter().map(|o| self.new_declaration(o.clone(), DeclarationValue::Fixity(o, assoc, prec))).collect())
     }
 }

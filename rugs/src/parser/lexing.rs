@@ -267,7 +267,10 @@ impl<'a> super::ParserState<'a> {
     fn get_codepoint(&mut self, pred: impl Fn(&char) -> bool, radix: u32) -> error::Result<char> {
         let start = self.pos;
         let stop = self.snarf(pred)?;
-        let code = u32::from_str_radix(&self.src[start..stop], radix)?;
+        let code = match u32::from_str_radix(&self.src[start..stop], radix) {
+            Ok(c) => c,
+            Err(_) => return self.lex_error("Invalid codepoint escape")
+        };
         if let Some(ch) = char::from_u32(code) {
             Ok(ch)
         } else {
@@ -280,14 +283,20 @@ impl<'a> super::ParserState<'a> {
             self.advance(2);
             let start = self.pos;
             let stop = self.snarf(char::is_ascii_hexdigit)?;
-            let bigint = BigInt::from_str_radix(&self.src[start..stop], 16)?;
+            let bigint = match BigInt::from_str_radix(&self.src[start..stop], 16) {
+                Ok(c) => c,
+                Err(_) => return self.lex_error("Invalid hex numeral")
+            };
             return Ok(self.token(TokenValue::Integer(bigint)));
         }
         if self.check_prefix("0o") || self.check_prefix("0O") {
             self.advance(2);
             let start = self.pos;
             let stop = self.snarf(|c| *c >= '0' && *c <= '7')?;
-            let bigint = BigInt::from_str_radix(&self.src[start..stop], 8)?;
+            let bigint = match BigInt::from_str_radix(&self.src[start..stop], 8) {
+                Ok(c) => c,
+                Err(_) => return self.lex_error("Invalid octal literal")
+            };
             return Ok(self.token(TokenValue::Integer(bigint)));
         }
         let mut stop = self.snarf(char::is_ascii_digit)?;
@@ -307,10 +316,17 @@ impl<'a> super::ParserState<'a> {
                     }
                     stop = self.snarf(char::is_ascii_digit)?;
                 }
-                return Ok(self.token(TokenValue::Float(self.src[self.token_start..stop].parse()?)));
+                let float = match self.src[self.token_start..stop].parse()  {
+                    Ok(c) => c,
+                    Err(_) => return self.lex_error("Invalid float literal")
+                };
+                return Ok(self.token(TokenValue::Float(float)));
             }
         }
-        let bigint = BigInt::from_str_radix(&self.src[self.token_start..stop], 10)?;
+        let bigint = match BigInt::from_str_radix(&self.src[self.token_start..stop], 10) {
+            Ok(c) => c,
+            Err(_) => return self.lex_error("Invalid integer literal")
+        };
         Ok(self.token(TokenValue::Integer(bigint)))
     }
 

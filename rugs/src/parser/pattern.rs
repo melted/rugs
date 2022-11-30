@@ -25,12 +25,14 @@ impl<'a> ParserState<'a> {
                 }
                 _ => Err(self.error("Minus in a pattern must be followed by number literal")),
             }
-        } else if let Some(pat) = self.try_parse(&mut Self::parse_apattern)? {
+        } else if let Some(pat) = self.try_parse(&mut |this| {
+            let gcon = this.parse_gcon()?;
+            let pats = this.parse_some1(&mut Self::parse_apattern)?;
+            Ok(this.pattern(PatternValue::Constructor(gcon, pats)))
+        })? {
             Ok(pat)
         } else {
-            let gcon = self.parse_gcon()?;
-            let pats = self.parse_some1(&mut Self::parse_apattern)?;
-            Ok(self.pattern(PatternValue::Constructor(gcon, pats)))
+            self.parse_apattern()
         }
     }
 
@@ -78,11 +80,7 @@ impl<'a> ParserState<'a> {
                     let pat_fields =
                         self.parse_separated_by(&mut Self::parse_pattern_field, TokenValue::Comma)?;
                     Ok(self.pattern(PatternValue::Labeled(v, pat_fields)))
-                } else if let Some(con) = self.try_parse(&mut |this| {
-                    let con = this.parse_gcon()?;
-                    this.parse_none(&mut Self::parse_apattern)?;
-                    Ok(con)
-                })? {
+                } else if let Some(con) = self.try_parse(&mut Self::parse_qcon)? {
                     Ok(self.pattern(PatternValue::Constructor(con, Vec::new())))
                 } else {
                     Err(self.error("Invalid pattern"))

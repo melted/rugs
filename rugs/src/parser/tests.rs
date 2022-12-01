@@ -89,8 +89,8 @@ fn parse_case() {
     let res = parse(
         None,
         r#"a = case x of
-                                                                Just y -> 22
-                                                                Nothing -> 33"#,
+                        Just y -> 22
+                        Nothing -> 33"#,
     );
     assert!(res.is_ok());
 }

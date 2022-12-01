@@ -437,7 +437,7 @@ impl Pattern {
 
         impl AstVisitor for VarCounter {
             fn on_pattern(&mut self, pat: &Pattern) {
-                match &*pat.value {
+                match pat.value.as_ref() {
                     PatternValue::As(id, _) |
                     PatternValue::Var(id) => { self.vars.insert(id.name.clone()); },
                     _ => ()
@@ -724,7 +724,7 @@ pub trait AstVisitor {
 impl Expression {
     pub fn visit(&self, visitor: &mut impl AstVisitor) {
         visitor.on_expression(self);
-        match &*self.value {
+        match self.value.as_ref() {
             ExpressionValue::App(f, arg) => {
                 f.visit(visitor);
                 arg.visit(visitor);
@@ -804,7 +804,7 @@ impl Expression {
 
         impl AstVisitor for Result {
             fn on_expression(&mut self, exp: &Expression) {
-                if let ExpressionValue::Var(v) = &*exp.value {
+                if let ExpressionValue::Var(v) = exp.value.as_ref() {
                     self.vars.insert(v.clone());
                 }
             }
@@ -821,7 +821,7 @@ impl Expression {
 impl Pattern {
     pub fn visit(&self, visitor: &mut impl AstVisitor) {
         visitor.on_pattern(self);
-        match &*self.value {
+        match self.value.as_ref() {
             PatternValue::As(_, pat) => pat.visit(visitor),
             PatternValue::Constructor(_, pats) => {
                 for pat in pats {

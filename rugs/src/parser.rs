@@ -44,7 +44,7 @@ pub fn dump_tokens(code: &str, output: &mut impl Write) -> error::Result<()> {
     info!("Dumping tokens from lexer");
     loop {
         let t = state.get_next_token()?;
-        writeln!(output, "{:?}", t).unwrap(); // YOLO
+        writeln!(output, "{:?}", t)?;
         if t.value == TokenValue::Eof {
             break;
         }

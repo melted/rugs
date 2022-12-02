@@ -375,6 +375,7 @@ pub enum ExpressionValue {
     If(Expression, Expression, Expression),
     Case(Expression, Vec<CaseAlt>),
     Infix(Identifier, Expression, Expression),
+    Prefix(Identifier, Expression),
     Typed(Expression, Context, Type),
     Lambda(Vec<Pattern>, Expression),
     // Apologia for Wrapped: Infix expressions are desugared after parsing because
@@ -567,6 +568,10 @@ pub trait AstMaker {
 
     fn infix(&mut self, op: Identifier, left: Expression, right: Expression) -> Expression {
         self.expr(ExpressionValue::Infix(op, left, right))
+    }
+
+    fn prefix(&mut self, op: Identifier,  right: Expression) -> Expression {
+        self.expr(ExpressionValue::Prefix(op, right))
     }
 
     fn var(&mut self, name: Identifier) -> Expression {

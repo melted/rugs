@@ -22,8 +22,7 @@ impl<'a> ParserState<'a> {
     fn parse_infix_expression(&mut self) -> error::Result<Expression> {
         if self.is_next(Token::varsym("-").value)? {
             let exp = self.parse_expression()?;
-            let negate = self.var(varid("-"));
-            return Ok(self.app(negate, exp)); // TODO: This will need to take part in precedence later
+            return Ok(self.prefix(varsym("-"), exp));
         }
         let exp = self.parse_lexp()?;
         if let Some(op) = self.try_parse(&mut Self::parse_qop)? {

@@ -43,16 +43,26 @@ impl<'a> ParserState<'a> {
             TokenValue::Newtype => Ok(vec![TopDeclaration::Newtype(self.parse_newtype()?)]),
             TokenValue::Class => Ok(vec![TopDeclaration::Class(self.parse_class()?)]),
             TokenValue::Instance => Ok(vec![TopDeclaration::Instance(self.parse_instance()?)]),
-            TokenValue::Default => Ok(vec![TopDeclaration::Default(self.parse_default_declaration()?)]),
-            TokenValue::Foreign => Ok(vec![TopDeclaration::Foreign(self.parse_foreign_declaration()?)]),
+            TokenValue::Default => Ok(vec![TopDeclaration::Default(
+                self.parse_default_declaration()?,
+            )]),
+            TokenValue::Foreign => Ok(vec![TopDeclaration::Foreign(
+                self.parse_foreign_declaration()?,
+            )]),
             _ => {
                 let decls = self.parse_declaration(DeclKind::Normal)?;
-                Ok(decls.into_iter().map(|d| TopDeclaration::Declaration(d)).collect())
-            },
+                Ok(decls
+                    .into_iter()
+                    .map(|d| TopDeclaration::Declaration(d))
+                    .collect())
+            }
         }
     }
 
-    pub(super) fn parse_declaration(&mut self, decl_kind: DeclKind) -> error::Result<Vec<Declaration>> {
+    pub(super) fn parse_declaration(
+        &mut self,
+        decl_kind: DeclKind,
+    ) -> error::Result<Vec<Declaration>> {
         match &self.peek_next_token()?.value {
             TokenValue::Semicolon | TokenValue::VirtualRightBrace | TokenValue::RightBrace => {
                 return Ok(vec![])
@@ -65,10 +75,20 @@ impl<'a> ParserState<'a> {
                 this.expect(TokenValue::DoubleColon)?;
                 Ok(vars)
             })? {
-                let context = self.try_parse(&mut |this| this.parse_context(false))?.unwrap_or_default();
+                let context = self
+                    .try_parse(&mut |this| this.parse_context(false))?
+                    .unwrap_or_default();
                 let ty = self.parse_type()?;
 
-                return Ok(vars.into_iter().map(|v| self.new_declaration(v.clone(), DeclarationValue::TypeSignature(v, context.clone(), ty.clone()))).collect());
+                return Ok(vars
+                    .into_iter()
+                    .map(|v| {
+                        self.new_declaration(
+                            v.clone(),
+                            DeclarationValue::TypeSignature(v, context.clone(), ty.clone()),
+                        )
+                    })
+                    .collect());
             }
             if matches!(
                 self.peek_next_token()?.value,
@@ -79,15 +99,23 @@ impl<'a> ParserState<'a> {
         }
         if let Some((n, fun)) = self.try_parse(&mut Self::parse_function_lhs)? {
             let bind = self.parse_function_rhs()?;
-            Ok(vec![self.new_declaration(n, DeclarationValue::FunBind(fun, bind))])
+            Ok(vec![
+                self.new_declaration(n, DeclarationValue::FunBind(fun, bind))
+            ])
         } else if decl_kind == DeclKind::Normal {
             let pat = self.parse_pattern()?;
             let bind = self.parse_function_rhs()?;
-            Ok(vec![self.new_declaration(varid(""), DeclarationValue::PatBind(pat, bind))])
+            Ok(vec![self.new_declaration(
+                varid(""),
+                DeclarationValue::PatBind(pat, bind),
+            )])
         } else {
             let var = self.parse_var()?;
             let bind = self.parse_function_rhs()?;
-            Ok(vec![self.new_declaration(var.clone(), DeclarationValue::VarBind(var, bind))])
+            Ok(vec![self.new_declaration(
+                var.clone(),
+                DeclarationValue::VarBind(var, bind),
+            )])
         }
     }
 
@@ -138,7 +166,11 @@ impl<'a> ParserState<'a> {
 
     pub(super) fn parse_optional_where(&mut self) -> error::Result<Vec<Declaration>> {
         if self.is_next(TokenValue::Where)? {
-            Ok(self.parse_some1(&mut |this| this.parse_declaration(DeclKind::Normal))?.into_iter().flatten().collect())
+            Ok(self
+                .parse_some1(&mut |this| this.parse_declaration(DeclKind::Normal))?
+                .into_iter()
+                .flatten()
+                .collect())
         } else {
             Ok(Vec::new())
         }
@@ -182,6 +214,9 @@ impl<'a> ParserState<'a> {
             _ => 9,
         };
         let ops = self.parse_separated_by(&mut Self::parse_op, TokenValue::Comma)?;
-        Ok(ops.into_iter().map(|o| self.new_declaration(o.clone(), DeclarationValue::Fixity(o, assoc, prec))).collect())
+        Ok(ops
+            .into_iter()
+            .map(|o| self.new_declaration(o.clone(), DeclarationValue::Fixity(o, assoc, prec)))
+            .collect())
     }
 }

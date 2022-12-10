@@ -101,7 +101,11 @@ impl<'a> ParserState<'a> {
         let hiding = self.is_next(Token::varid("hiding").value)?;
         import.spec = if self.peek_next(TokenValue::LeftParen)? {
             let impspec = self.parse_paren_list(&mut Self::parse_import)?;
-            if hiding { ImportSpec::Hide(impspec) } else { ImportSpec::Only(impspec) }
+            if hiding {
+                ImportSpec::Hide(impspec)
+            } else {
+                ImportSpec::Only(impspec)
+            }
         } else if hiding {
             return Err(self.error("No list after `hiding`"));
         } else {

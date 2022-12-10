@@ -2,6 +2,8 @@
 
 # Rugs
 
+![CI](https://github.com/melted/rugs/actions/workflows/ci.yml/badge.svg)
+
 Rugs is a lightweight Haskell implementation inspired by Hugs. 
 
 ### License

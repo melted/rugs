@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use num_bigint::BigInt;
 
-use crate::support::{location::Location, error};
+use crate::support::{error, location::Location};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Metadata {
@@ -22,7 +22,7 @@ pub struct Module {
     pub imports: Vec<ImportDecl>,
     pub exports: Option<Vec<Export>>,
     pub declarations: Vec<TopDeclaration>,
-    pub names: HashSet<String>
+    pub names: HashSet<String>,
 }
 
 impl Module {
@@ -33,7 +33,7 @@ impl Module {
             imports: Vec::new(),
             exports: None,
             declarations: Vec::new(),
-            names: HashSet::new()
+            names: HashSet::new(),
         }
     }
 }
@@ -66,7 +66,7 @@ pub struct TopExpression {
 pub enum ImportSpec {
     All,
     Hide(Vec<Import>),
-    Only(Vec<Import>)
+    Only(Vec<Import>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,7 +75,7 @@ pub struct ImportDecl {
     pub name: Identifier,
     pub qualified: bool,
     pub alias: Option<Identifier>,
-    pub spec: ImportSpec
+    pub spec: ImportSpec,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -124,15 +124,15 @@ impl TopDeclaration {
             TopDeclaration::Class(decl) => Ok(vec![decl.tycls.name.clone()]),
             TopDeclaration::Data(decl) => Ok(vec![decl.name.name.clone()]),
             TopDeclaration::Foreign(foreign) => match &foreign.decl {
-                ForeignDeclaration::Export { var: x,.. } => Ok(vec![x.name.clone()]),
-                ForeignDeclaration::Import { var: x,.. } => Ok(vec![x.name.clone()])
-            }
+                ForeignDeclaration::Export { var: x, .. } => Ok(vec![x.name.clone()]),
+                ForeignDeclaration::Import { var: x, .. } => Ok(vec![x.name.clone()]),
+            },
             TopDeclaration::Newtype(newt) => Ok(vec![newt.name.name.clone()]),
             TopDeclaration::Declaration(decl) => match &decl.value {
                 DeclarationValue::PatBind(pb, _) => Ok(pb.vars()),
-                _ => Ok(vec![decl.name.name.clone()])
-            } 
-            _ => Ok(Vec::new())
+                _ => Ok(vec![decl.name.name.clone()]),
+            },
+            _ => Ok(Vec::new()),
         }
     }
 }
@@ -342,9 +342,9 @@ impl Type {
             Type::Base(n) => Some(n.name.clone()),
             Type::Simple { base, tyvars } => Some(base.name.clone()),
             Type::App(f, _) => f.get_base_name(),
-            _ => None
+            _ => None,
         }
-    } 
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -430,22 +430,24 @@ pub enum PatternValue {
 }
 
 impl Pattern {
-    
     fn vars(&self) -> Vec<String> {
         struct VarCounter {
-            pub vars : HashSet<String>
+            pub vars: HashSet<String>,
         }
 
         impl AstVisitor for VarCounter {
             fn on_pattern(&mut self, pat: &Pattern) {
                 match pat.value.as_ref() {
-                    PatternValue::As(id, _) |
-                    PatternValue::Var(id) => { self.vars.insert(id.name.clone()); },
-                    _ => ()
+                    PatternValue::As(id, _) | PatternValue::Var(id) => {
+                        self.vars.insert(id.name.clone());
+                    }
+                    _ => (),
                 }
             }
         }
-        let mut var_counter = VarCounter { vars: HashSet::new() };
+        let mut var_counter = VarCounter {
+            vars: HashSet::new(),
+        };
         self.visit(&mut var_counter);
         var_counter.vars.into_iter().collect()
     }
@@ -480,7 +482,7 @@ pub trait AstMaker {
             name,
             qualified: false,
             alias: None,
-            spec: ImportSpec::All
+            spec: ImportSpec::All,
         }
     }
 
@@ -510,7 +512,12 @@ pub trait AstMaker {
         }
     }
 
-    fn new_newtype(&mut self, name:Identifier, the_type: Type, constructor: Constructor) -> Newtype {
+    fn new_newtype(
+        &mut self,
+        name: Identifier,
+        the_type: Type,
+        constructor: Constructor,
+    ) -> Newtype {
         Newtype {
             id: self.next_id(),
             name,
@@ -520,7 +527,7 @@ pub trait AstMaker {
         }
     }
 
-    fn new_typedecl(&mut self, name:Identifier, this_type: Type, that_type: Type) -> TypeDecl {
+    fn new_typedecl(&mut self, name: Identifier, this_type: Type, that_type: Type) -> TypeDecl {
         TypeDecl {
             id: self.next_id(),
             name,
@@ -546,7 +553,7 @@ pub trait AstMaker {
         }
     }
 
-    fn new_declaration(&mut self, name:Identifier, decl: DeclarationValue) -> Declaration {
+    fn new_declaration(&mut self, name: Identifier, decl: DeclarationValue) -> Declaration {
         Declaration {
             id: self.next_id(),
             name,
@@ -570,7 +577,7 @@ pub trait AstMaker {
         self.expr(ExpressionValue::Infix(op, left, right))
     }
 
-    fn prefix(&mut self, op: Identifier,  right: Expression) -> Expression {
+    fn prefix(&mut self, op: Identifier, right: Expression) -> Expression {
         self.expr(ExpressionValue::Prefix(op, right))
     }
 

@@ -6,7 +6,7 @@ pub enum RugsError {
     #[error("Parsing error: {} at {}.", msg, loc)]
     Parse { msg: String, loc: Location },
     #[error("IO error: {}", err)]
-    IO { err: std::io::Error }
+    IO { err: std::io::Error },
 }
 
 pub type Result<T> = std::result::Result<T, RugsError>;
